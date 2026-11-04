@@ -8,6 +8,10 @@ It runs in your browser and talks to the S-1 over USB MIDI.
 Unofficial and not affiliated with or endorsed by Roland. It doesn't change the S-1's
 firmware. Your patterns and sounds stay in your browser.
 
+Visits to the page are counted anonymously with
+[GoatCounter](https://www.goatcounter.com/help/privacy), which uses no cookies and
+never receives your patterns or patches.
+
 **Requires a current version of Google Chrome or Microsoft Edge.**
 
 ## What it does
@@ -20,7 +24,7 @@ firmware. Your patterns and sounds stay in your browser.
 - **Sound control:** every control change in Roland's MIDI chart, 54 in all, grouped into
   tabs. Knobs moved on the S-1 update the page.
 - **Saved sounds:** store and recall named sets of values in the browser.
-- **16 patterns:** with MIDI file export.
+- **16 patterns:** with MIDI file import and export, and octave up and down buttons.
 - **Patch library:** keep patches as files in a folder on your computer, import them from
   an S-1 backup, and load one to fill the grid, update the controls, and hear it on the S-1,
   including its motions.

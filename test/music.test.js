@@ -137,6 +137,65 @@ test("MIDI files have a valid header, tempo, and timed notes", () => {
   assert.deepEqual(track.slice(-4), [0, 0xff, 0x2f, 0]);
 });
 
+test("a MIDI file exported here imports with the same notes and tempo", () => {
+  const notes = [
+    { time: 0, note: 60, velocity: 1, length: 240, probability: 100 },
+    { time: 0, note: 64, velocity: 0.5, length: 480, probability: 100 },
+    { time: 240, note: 60, velocity: 1, length: 240, probability: 100 },
+  ];
+  const parsed = Music.parseMidi(Music.midiFile(notes, { bpm: 90, channel: 2 }));
+  assert.ok(Math.abs(parsed.bpm - 90) < 0.01);
+  assert.deepEqual(parsed.notes.map((n) => [n.time, n.note, n.length]), [[0, 60, 240], [0, 64, 480], [240, 60, 240]]);
+  assert.ok(Math.abs(parsed.notes[1].velocity - 64 / 127) < 0.01);
+});
+
+const midiBytes = (division, ...tracks) => new Uint8Array([
+  0x4d, 0x54, 0x68, 0x64, 0, 0, 0, 6, 0, 1, 0, tracks.length, division >> 8, division & 255,
+  ...tracks.flatMap((track) => [0x4d, 0x54, 0x72, 0x6b, 0, 0, 0, track.length, ...track]),
+]);
+
+test("MIDI import handles other resolutions, running status and note-on as note-off", () => {
+  const parsed = Music.parseMidi(midiBytes(480, [
+    0, 0x90, 60, 100, // A note on...
+    120, 60, 0, // ...ended by running status with velocity 0, 120 of 480 ticks later.
+    0, 62, 100,
+    120, 0x80, 62, 0,
+    0, 0xff, 0x2f, 0,
+  ]));
+  assert.equal(parsed.bpm, null);
+  assert.deepEqual(parsed.notes.map((n) => [n.time, n.note, n.length]), [[0, 60, 240], [240, 62, 240]]);
+});
+
+test("MIDI import merges tracks, skips other events, and ends hanging notes", () => {
+  const parsed = Music.parseMidi(midiBytes(960,
+    [0, 0xf0, 2, 1, 0xf7, 0, 0xb0, 7, 100, 0, 0xc0, 5, 0, 0x90, 60, 127, 0x81, 0x70, 0x80, 60, 0],
+    [0, 0x91, 67, 127, 0x81, 0x70, 0xff, 0x2f, 0]));
+  assert.deepEqual(parsed.notes.map((n) => [n.time, n.note, n.length]), [[0, 60, 240], [0, 67, 240]]);
+});
+
+test("MIDI import leaves out drums, unless the file has nothing else", () => {
+  const drums = [0, 0x99, 36, 127, 10, 0x89, 36, 0];
+  const lead = [0, 0x90, 60, 127, 10, 0x80, 60, 0];
+  assert.deepEqual(Music.parseMidi(midiBytes(960, drums, lead)).notes.map((n) => n.note), [60]);
+  assert.deepEqual(Music.parseMidi(midiBytes(960, drums)).notes.map((n) => n.note), [36]);
+});
+
+test("MIDI import refuses files it can't read", () => {
+  assert.throws(() => Music.parseMidi(new TextEncoder().encode("this is not a midi file")), /isn't a MIDI file/);
+  assert.throws(() => Music.parseMidi(midiBytes(0xe728, [0, 0xff, 0x2f, 0])), /isn't in beats/);
+  const cut = midiBytes(960, [0, 0x90, 60, 127]);
+  assert.throws(() => Music.parseMidi(cut.slice(0, cut.length - 2)), /cut short/);
+});
+
+test("octave shifts move every note, or nothing if one would leave the range", () => {
+  const notes = [{ time: 0, note: 60, length: 240 }, { time: 240, note: 72, length: 240 }];
+  assert.deepEqual(Music.shiftOctaves(notes, 1).map((n) => n.note), [72, 84]);
+  assert.deepEqual(Music.shiftOctaves(notes, -1).map((n) => n.note), [48, 60]);
+  assert.equal(notes[0].note, 60);
+  assert.equal(Music.shiftOctaves([{ time: 0, note: 120, length: 240 }], 1), null);
+  assert.equal(Music.shiftOctaves([{ time: 0, note: 5, length: 240 }], -1), null);
+});
+
 test("a pattern's key is detected from its notes", () => {
   const notes = (list) => list.map((note, i) => ({ time: i * 240, note, length: 240 }));
   assert.deepEqual(Music.detectKey(notes([57, 60, 64, 57, 60, 64, 65, 67, 57])), { root: 9, scale: "minor" });

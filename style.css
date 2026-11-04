@@ -86,7 +86,8 @@ button.primary { min-width: 68px; background: var(--accent); border-color: var(-
 .pill.warn { color: var(--warn); border-color: var(--warn); }
 
 .slots { display: flex; flex-wrap: wrap; gap: 3px; }
-.slot { width: 34px; height: 30px; padding: 0; color: var(--muted); background: var(--cell); font-variant-numeric: tabular-nums; }
+.button-pair { display: flex; gap: 3px; }
+.slot { width: 30px; height: 30px; padding: 0; color: var(--muted); background: var(--cell); font-variant-numeric: tabular-nums; }
 .slot.has-pattern { color: var(--text); background: #4b3620; border-color: rgb(var(--on)); }
 .slot[aria-current="true"] { color: var(--accent-text); background: var(--accent); border-color: #fff; font-weight: 700; }
 .slot.queued { border: 2px dashed #fff; }

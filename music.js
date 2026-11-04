@@ -231,6 +231,131 @@ const Music = (() => {
     ]);
   }
 
+  // Reads a Standard MIDI File. All tracks are merged, and a drum channel is left out
+  // unless it's all there is. Only the first tempo is kept.
+  function parseMidi(bytes) {
+    let at = 0;
+    const need = (count) => {
+      if (at + count > bytes.length) throw new Error("the file is cut short.");
+    };
+    const byte = () => {
+      need(1);
+      at += 1;
+      return bytes[at - 1];
+    };
+    const uint = (count) => {
+      let value = 0;
+      for (let i = 0; i < count; i += 1) value = value * 256 + byte();
+      return value;
+    };
+    const tag = () => String.fromCharCode(byte(), byte(), byte(), byte());
+    const varLength = () => {
+      let value = 0;
+      for (let i = 0; i < 4; i += 1) {
+        const next = byte();
+        value = value * 128 + (next & 0x7f);
+        if (!(next & 0x80)) return value;
+      }
+      throw new Error("it has a damaged event.");
+    };
+
+    if (bytes.length < 14 || tag() !== "MThd") throw new Error("it isn't a MIDI file.");
+    const headerEnd = uint(4) + at;
+    uint(2); // Format: tracks are merged whichever it is.
+    uint(2); // Track count: read from the chunks, as files can be wrong about it.
+    const division = uint(2);
+    if (!division || division & 0x8000) throw new Error("its timing isn't in beats, which isn't supported.");
+    const toTicks = (time) => Math.round((time * PPQ) / division);
+    at = headerEnd;
+
+    const found = [];
+    let bpm = null;
+    while (at + 8 <= bytes.length) {
+      const id = tag();
+      const chunkEnd = uint(4) + at;
+      if (id !== "MTrk") {
+        at = chunkEnd;
+        continue;
+      }
+      let time = 0;
+      let running = 0;
+      const open = new Map();
+      const close = (channel, note) => {
+        const queue = open.get(channel * 128 + note);
+        const started = queue && queue.shift();
+        if (!started) return;
+        const startTick = toTicks(started.time);
+        found.push({
+          time: startTick,
+          note,
+          velocity: started.velocity / 127,
+          length: Math.max(1, toTicks(time) - startTick),
+          probability: 100,
+          channel,
+        });
+      };
+      while (at < chunkEnd) {
+        time += varLength();
+        let status = bytes[at];
+        if (status >= 0x80) {
+          at += 1;
+          if (status < 0xf0) running = status;
+        } else {
+          status = running;
+          if (!status) throw new Error("it has a damaged event.");
+        }
+        if (status === 0xff) {
+          const type = byte();
+          const size = varLength();
+          need(size);
+          if (type === 0x51 && size === 3 && bpm === null) {
+            const tempo = (bytes[at] << 16) | (bytes[at + 1] << 8) | bytes[at + 2];
+            if (tempo) bpm = 60000000 / tempo;
+          }
+          at += size;
+        } else if (status === 0xf0 || status === 0xf7) {
+          const size = varLength();
+          need(size);
+          at += size;
+        } else if (status >= 0xf0) {
+          throw new Error("it has a damaged event.");
+        } else {
+          const kind = status >> 4;
+          const channel = status & 15;
+          const first = byte();
+          const second = kind === 0xc || kind === 0xd ? 0 : byte();
+          if (kind === 0x9 && second > 0) {
+            const id2 = channel * 128 + first;
+            if (!open.has(id2)) open.set(id2, []);
+            open.get(id2).push({ time, velocity: second });
+          } else if (kind === 0x8 || kind === 0x9) {
+            close(channel, first);
+          }
+        }
+      }
+      // A note left hanging ends with its track.
+      for (const key of [...open.keys()]) {
+        while (open.get(key).length) close(Math.floor(key / 128), key % 128);
+      }
+      at = chunkEnd;
+    }
+    const DRUMS = 9;
+    const melodic = found.filter((item) => item.channel !== DRUMS);
+    const chosen = melodic.length ? melodic : found;
+    return {
+      bpm,
+      notes: chosen
+        .map(({ channel, ...item }) => item)
+        .sort((a, b) => a.time - b.time || a.note - b.note),
+    };
+  }
+
+  // Moves whole octaves. Returns null if any note would leave the MIDI range.
+  function shiftOctaves(notes, octaves) {
+    const moved = notes.map((item) => ({ ...item, note: item.note + octaves * 12 }));
+    return moved.every((item) => item.note >= 0 && item.note <= 127) ? moved : null;
+  }
+
   return {
     CHORDS,
     GENERATORS,
@@ -246,6 +371,8 @@ const Music = (() => {
     midiFile,
     noteName,
     notesInKey,
+    parseMidi,
+    shiftOctaves,
     stepsAbove,
   };
 })();

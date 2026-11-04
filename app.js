@@ -178,13 +178,12 @@ function selectSlot(index) {
   }
 }
 
+// The sound stays as it is, so only loading a patch or a saved sound changes it.
 function switchTo(index) {
+  restoreAfterMotions();
   state.current = index;
   state.queued = null;
   state.page = 0;
-  // A pattern loaded from the library brings its sound with it.
-  const source = state.sources[index];
-  if (source) applySound(Prm.readValues(source.text));
   renderAll();
   saveSoon();
 }
@@ -215,6 +214,31 @@ function generatePattern() {
   saveSoon();
   const hint = kind === "chords" ? " Set Polyphony to Poly on the VOICE tab to hear full chords." : "";
   setStatus(`New ${Music.GENERATORS[kind].toLowerCase()} in the key. Generate again for another, or Undo.${hint}`);
+}
+
+function shiftOctave(octaves) {
+  if (!notes().length) {
+    setStatus("This pattern has no notes to move.", true);
+    return;
+  }
+  const moved = Music.shiftOctaves(notes(), octaves);
+  if (!moved) {
+    setStatus(`Can't move ${octaves > 0 ? "up" : "down"} an octave, as the notes would go past the MIDI range.`, true);
+    return;
+  }
+  closeNoteEditor({ restoreFocus: false });
+  remember();
+  slot().notes = moved;
+  // The view only follows once the notes leave it.
+  const pitches = moved.map((n) => n.note);
+  if (Math.min(...pitches) < lowNote() || Math.max(...pitches) > lowNote() + state.span * 12) {
+    state.lowOctave = Math.max(1, Math.min(6, state.lowOctave + octaves));
+    $("octave").value = String(state.lowOctave);
+  }
+  renderGrid();
+  renderChrome();
+  saveSoon();
+  setStatus(`Moved pattern ${state.current + 1} ${octaves > 0 ? "up" : "down"} an octave.`);
 }
 
 /* ---------- Undo ---------- */
@@ -1095,8 +1119,8 @@ function schedule() {
   }
 }
 
-// Plays a loaded patch's recorded knob movements. Each pass starts from the sound's
-// own values, as the movements only cover part of the pattern.
+// Plays a loaded patch's recorded knob movements. Each pass starts from the current
+// sound's values, as the movements only cover part of the pattern.
 function scheduleMotions(from, to, ms) {
   const source = state.sources[state.current];
   if (!source) return;
@@ -1105,7 +1129,8 @@ function scheduleMotions(from, to, ms) {
   if (from === 0) {
     source.base ??= Prm.readValues(source.text);
     for (const cc of new Set(source.motions.map((m) => m.cc))) {
-      if (source.base[cc] !== undefined) sendController(cc, source.base[cc], state.nextTime);
+      const value = state.values[cc] ?? source.base[cc];
+      if (value !== undefined) sendController(cc, value, state.nextTime);
     }
   }
   for (const motion of source.motions) {
@@ -1226,6 +1251,49 @@ function exportMidi() {
   link.click();
   URL.revokeObjectURL(link.href);
   setStatus(`Exported pattern ${state.current + 1}.`);
+}
+
+const IMPORT_BARS = [1, 2, 4, 8];
+
+// Replaces the current pattern, which Undo brings back. The sound doesn't change.
+async function importMidi(file) {
+  let parsed;
+  try {
+    parsed = Music.parseMidi(new Uint8Array(await file.arrayBuffer()));
+  } catch (error) {
+    setStatus(`Couldn't read ${file.name}: ${error.message}`, true);
+    return;
+  }
+  if (!parsed.notes.length) {
+    setStatus(`${file.name} has no notes to import.`, true);
+    return;
+  }
+  stop();
+  closeNoteEditor({ restoreFocus: false });
+  remember();
+  const end = Math.max(...parsed.notes.map((n) => n.time + n.length));
+  const bars = IMPORT_BARS.find((count) => end <= count * BAR) ?? IMPORT_BARS.at(-1);
+  const limit = bars * BAR;
+  const kept = parsed.notes
+    .filter((n) => n.time < limit)
+    .map((n) => ({ ...n, length: Math.min(n.length, limit - n.time) }));
+  slot().bars = bars;
+  slot().notes = kept;
+  // It's a new pattern, so a patch loaded here earlier no longer applies.
+  state.sources[state.current] = null;
+  library.loaded = null;
+  if (parsed.bpm) state.bpm = Math.max(20, Math.min(300, Math.round(parsed.bpm * 10) / 10));
+  const key = Music.detectKey(kept);
+  if (key) Object.assign(state, key);
+  const lowest = Math.min(...kept.map((n) => n.note));
+  state.lowOctave = Math.max(1, Math.min(6, Math.floor(lowest / 12) - 1));
+  state.page = 0;
+  renderAll();
+  renderLibrary();
+  saveSoon();
+  const cut = end > limit ? ` It's longer than ${bars} bars, so the rest was cut.` : "";
+  const count = `${kept.length} ${kept.length === 1 ? "note" : "notes"}`;
+  setStatus(`Imported ${count} from ${file.name} into pattern ${state.current + 1}. Undo brings the old one back.${cut}`);
 }
 
 /* ---------- Saving onto the S-1 ---------- */
@@ -2072,6 +2140,15 @@ function bindControls() {
   $("save-choose").addEventListener("click", chooseS1Drive);
   $("save-write").addEventListener("click", writeToS1);
   $("export").addEventListener("click", exportMidi);
+  $("import").addEventListener("click", () => $("import-file").click());
+  $("import-file").addEventListener("change", (event) => {
+    const [file] = event.target.files;
+    // Cleared so that choosing the same file again still counts as a change.
+    event.target.value = "";
+    if (file) importMidi(file);
+  });
+  $("octave-down").addEventListener("click", () => shiftOctave(-1));
+  $("octave-up").addEventListener("click", () => shiftOctave(1));
   $("generate").addEventListener("click", generatePattern);
   $("undo").addEventListener("click", undo);
   $("duplicate").addEventListener("click", duplicatePattern);

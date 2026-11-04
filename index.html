@@ -5,6 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>S-1 Grid</title>
 <link rel="stylesheet" href="style.css">
+<!-- Counts visits anonymously. A fixed version with a checksum, and the tool works if it's blocked. -->
+<script data-goatcounter="https://pzuzarte.goatcounter.com/count"
+        async src="https://gc.zgo.at/count.v5.js"
+        crossorigin="anonymous"
+        integrity="sha384-atnOLvQb9t+jTSipvd75X2yginT4PjVbqDdlJAmxMm+wYElFmeR6EmLP5bYeoRVQ"></script>
 </head>
 <body>
 <header class="bar">
@@ -37,6 +42,10 @@
   <button id="undo" type="button" disabled>Undo</button>
   <button id="duplicate" type="button" title="Copy this pattern to the next empty slot">Duplicate</button>
   <button id="clear" type="button">Clear</button>
+  <div class="button-pair">
+    <button id="octave-down" type="button" title="Move every note in this pattern down an octave" aria-label="Octave down">Oct -</button>
+    <button id="octave-up" type="button" title="Move every note in this pattern up an octave" aria-label="Octave up">Oct +</button>
+  </div>
 </section>
 
 <section class="bar transport" aria-label="Transport and grid settings">
@@ -174,6 +183,8 @@
   </label>
   <button id="save-open" class="primary" type="button" title="Save this pattern and sound onto a pattern on the S-1">Save to S-1</button>
   <button id="send" type="button" title="Plays this pattern once, so the S-1 can record it in real time. See Help.">Record to S-1</button>
+  <button id="import" type="button" title="Replace this pattern with the notes from a MIDI file. Undo brings the old one back.">Import MIDI</button>
+  <input id="import-file" type="file" accept=".mid,.midi,audio/midi" hidden>
   <button id="export" type="button" title="Download this pattern as a MIDI file">Export MIDI</button>
 </footer>
 <p class="hint">Click: add or remove a step. Drag from an empty step: draw a note. Drag a note: change its length. Cmd-drag: fill steps. Right-click: edit a step. Shift-click: velocity. Click a note name to hear it. Space: play and stop. T: triplets.</p>
@@ -185,6 +196,7 @@
   </div>
   <div class="help-body" tabindex="0">
     <p>A pattern grid and sound editor for the Roland AIRA Compact S-1. It runs in your browser, sends MIDI to the S-1 and doesn't change its firmware. Your patterns stay on this computer. It needs a current Chrome or Edge on a computer. It's unofficial and not affiliated with Roland.</p>
+    <p>Visits to this page are counted anonymously with <a href="https://www.goatcounter.com/" target="_blank" rel="noopener">GoatCounter</a>, which uses no cookies. It never receives your patterns or patches.</p>
 
     <h3>Set up</h3>
     <ol>
@@ -201,6 +213,7 @@
       <li><b>All notes</b> shows every note. Notes outside the key are marked in their row name.</li>
       <li><b>Draw</b> places a single note, a power chord, a triad or a 7th, using notes from the key. To hear chords, set <b>Polyphony</b> to Poly on the VOICE tab.</li>
       <li><b>Idea</b> and <b>Generate</b> write a bassline, melody, arpeggio or chord pattern in the key. Generating replaces the current pattern, and <b>Undo</b> brings it back.</li>
+      <li><b>Oct -</b> and <b>Oct +</b> move every note in the current pattern down or up an octave.</li>
     </ul>
 
     <h3>Mouse and keyboard</h3>
@@ -223,6 +236,7 @@
     <h3>Sound controls</h3>
     <ul>
       <li>The panel on the right has every control the S-1 accepts over MIDI, grouped into tabs. Changes are immediate, even during playback.</li>
+      <li>The sound stays the same when you switch patterns. Only loading a patch or a saved sound changes it, and saving a pattern saves the sound as it is then.</li>
       <li>Turning a knob on the S-1 updates the matching control here. A value shown as <b>?</b> hasn't been set or received yet, because the S-1 can't report its settings when asked.</li>
       <li><b>Save to library</b>, below the controls, saves the current pattern and sound together as a patch in your library folder. Values shown as <b>?</b> keep the value from the patch you loaded, or otherwise the blank patch's.</li>
       <li>The drawn wave's shape, and settings with no MIDI control, can only be changed on the S-1.</li>
@@ -244,6 +258,7 @@
     <h3>Patterns and the S-1's own memory</h3>
     <ul>
       <li>Patterns 1-16 here are stored in this browser, and clearing its data for the site erases them. <b>Export MIDI</b> keeps a copy as a file.</li>
+      <li><b>Import MIDI</b> replaces the current pattern with the notes from a MIDI file, and <b>Undo</b> brings it back. All its tracks are merged, leaving out drums on channel 10 if there's anything else. It also sets the tempo and estimates the key. The pattern gets 1, 2, 4 or 8 bars, whichever fits, and anything past 8 bars is cut. A patch loaded into that pattern no longer applies, though the sound stays.</li>
       <li>Patterns play from this page, so the page must stay open.</li>
       <li><b>Save to S-1</b> writes a pattern and sound into the S-1's memory, using its USB backup and restore. It takes a restart of the S-1, and the button walks you through it. This isn't a method Roland documents, so keep a copy of the S-1's <b>BACKUP</b> folder.</li>
       <li>A save holds up to 64 steps, 4 notes per step and values on 1/16 steps. Anything else is rounded or left out, and you're told first. Long notes are saved as tied steps. Settings shown as <b>?</b> stay as they are in the pattern's source. Pan and mod wheel aren't stored in patterns. A pattern loaded from the library keeps its motions, while other saves remove any motions in the slot being replaced. Library patches sent directly are copied exactly.</li>
