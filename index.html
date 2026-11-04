@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>S-1 Grid</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="bar">
+  <h1>S-1 Grid</h1>
+  <div class="field" role="group" aria-labelledby="key-label">
+    <span id="key-label" class="group-label">Key</span>
+    <div id="roots" class="segmented"></div>
+  </div>
+  <label>Scale
+    <select id="scale"></select>
+  </label>
+  <label class="check" title="When on, changing the key moves your patterns into the new key. When off, notes stay where they are.">
+    <input id="move-notes" type="checkbox" checked> Move notes with key
+  </label>
+  <div class="spacer"></div>
+  <span id="midi-state" class="pill">MIDI: starting</span>
+  <button id="midi-retry" type="button" hidden>Allow MIDI</button>
+  <button id="help-open" type="button" title="Help (press ?)">Help</button>
+</header>
+
+<section class="bar slots-bar" aria-label="Patterns">
+  <span class="group-label">Pattern</span>
+  <div id="slots" class="slots"></div>
+  <span id="patch-name" class="pill" hidden></span>
+  <div class="spacer"></div>
+  <label>Idea
+    <select id="generator"></select>
+  </label>
+  <button id="generate" type="button" title="Replaces this pattern with a new one in the key. Undo brings the old one back.">Generate</button>
+  <button id="undo" type="button" disabled>Undo</button>
+  <button id="duplicate" type="button" title="Copy this pattern to the next empty slot">Duplicate</button>
+  <button id="clear" type="button">Clear</button>
+</section>
+
+<section class="bar transport" aria-label="Transport and grid settings">
+  <button id="play" class="primary" type="button">Play</button>
+  <button id="stop-all" type="button" title="Stops playback and silences any stuck notes">Panic</button>
+  <label>BPM
+    <input id="bpm" type="number" min="20" max="300" step="0.1" value="120">
+  </label>
+  <label>Bars
+    <select id="bars">
+      <option value="1">1</option>
+      <option value="2">2</option>
+      <option value="4" selected>4</option>
+      <option value="8">8</option>
+    </select>
+  </label>
+  <div class="field" role="group" aria-labelledby="steps-label">
+    <span id="steps-label" class="group-label">Steps</span>
+    <div id="steps" class="segmented">
+      <button type="button" data-value="480">1/8</button>
+      <button type="button" data-value="240">1/16</button>
+      <button type="button" data-value="120">1/32</button>
+    </div>
+    <button id="triplets" class="toggle" type="button" aria-pressed="false" title="Three steps where there were two. Press T to switch.">Triplets</button>
+  </div>
+  <div class="field" role="group" aria-labelledby="draw-label">
+    <span id="draw-label" class="group-label">Draw</span>
+    <div id="chords" class="segmented"></div>
+  </div>
+  <label title="How long a clicked step lasts. Drag from an empty step to draw any length.">Length
+    <select id="new-length">
+      <option value="step" selected>1 step</option>
+      <option value="beat">1 beat</option>
+      <option value="bar">1 bar</option>
+    </select>
+  </label>
+  <label>Octave
+    <select id="octave"></select>
+  </label>
+  <label>Rows
+    <select id="span">
+      <option value="1">1 oct</option>
+      <option value="2" selected>2 oct</option>
+      <option value="3">3 oct</option>
+    </select>
+  </label>
+  <label class="check" title="Show every note, not just the ones in the key.">
+    <input id="show-all" type="checkbox"> All notes
+  </label>
+</section>
+
+<div class="workspace">
+  <div class="grid-column">
+    <div id="pager" class="pager" hidden>
+      <button id="page-prev" type="button" aria-label="Previous bars">&lsaquo;</button>
+      <span id="page-label" aria-live="polite"></span>
+      <button id="page-next" type="button" aria-label="Next bars">&rsaquo;</button>
+    </div>
+    <main id="grid-wrap" class="grid-wrap">
+      <div id="grid" class="grid"></div>
+      <div id="playhead" class="playhead" hidden></div>
+    </main>
+  </div>
+
+  <aside class="panel" aria-label="Sound">
+    <nav id="tabs" class="tabs" aria-label="Sound sections"></nav>
+    <div id="library" class="library" hidden>
+      <div class="library-actions">
+        <button id="library-folder" type="button">Choose library folder</button>
+        <button id="library-import" type="button" title="Copy patches from an S-1 BACKUP folder into the library">Import backup</button>
+      </div>
+      <p id="library-state" class="library-state"></p>
+      <input id="library-search" type="search" placeholder="Search patches" aria-label="Search patches" spellcheck="false">
+      <div class="library-batch">
+        <button id="library-select-all" type="button">Select all</button>
+        <button id="library-select-none" type="button">Clear</button>
+        <button id="library-send" class="primary" type="button" disabled>Send to S-1</button>
+      </div>
+      <ul id="library-list" class="library-list"></ul>
+    </div>
+    <div id="params" class="params"></div>
+    <div class="save-bar">
+      <div id="sound-bar" class="sound-bar" hidden>
+        <label title="Sounds saved in this browser by an earlier version. Load one, then use Save to library to keep it.">Older sounds
+          <select id="sound"></select>
+        </label>
+        <button id="sound-send" type="button" title="Send this sound to the S-1">Load</button>
+        <button id="sound-delete" type="button">Delete</button>
+      </div>
+      <div class="library-save">
+        <input id="library-name" type="text" maxlength="60" placeholder="Patch name" aria-label="Patch name" spellcheck="false">
+        <button id="library-save" class="primary" type="button" title="Saves the current pattern and sound as a patch in your library folder">Save to library</button>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<div id="note-editor" class="note-editor" role="dialog" aria-labelledby="editor-title" hidden>
+  <h2 id="editor-title"></h2>
+  <p id="editor-count" class="editor-count" hidden></p>
+  <label class="editor-row" for="edit-velocity">Velocity
+    <input id="edit-velocity-range" type="range" min="1" max="127" aria-label="Velocity slider">
+    <input id="edit-velocity" type="number" min="1" max="127" step="1">
+  </label>
+  <label class="editor-row" for="edit-length">Length
+    <span id="edit-length-steps" class="unit-note">ticks</span>
+    <input id="edit-length" type="number" min="1" step="1">
+  </label>
+  <label class="editor-row" for="edit-offset" title="How late the note plays after the start of the step. 960 ticks is one beat.">Timing
+    <span id="edit-offset-range" class="unit-note"></span>
+    <input id="edit-offset" type="number" min="0" step="1">
+  </label>
+  <label class="editor-row" for="edit-probability" title="The chance this note plays on each pass, during playback from this page.">Probability
+    <span class="unit-note">%</span>
+    <input id="edit-probability" type="number" min="0" max="100" step="1">
+  </label>
+  <div class="editor-actions">
+    <button id="edit-hear" type="button">Hear</button>
+    <button id="edit-delete" type="button">Delete</button>
+    <button id="edit-done" class="primary" type="button">Done</button>
+  </div>
+</div>
+
+<footer class="bar foot">
+  <p id="status" class="status" role="status" aria-live="polite"></p>
+  <div class="spacer"></div>
+  <label>MIDI output
+    <select id="output"></select>
+  </label>
+  <label title="The S-1 uses channel 3 unless you've changed it.">Channel
+    <select id="channel"></select>
+  </label>
+  <label class="check" title="Sends MIDI clock, start and stop with playback. These also start the S-1's own sequencer.">
+    <input id="clock" type="checkbox"> Send clock
+  </label>
+  <button id="save-open" class="primary" type="button" title="Save this pattern and sound onto a pattern on the S-1">Save to S-1</button>
+  <button id="send" type="button" title="Plays this pattern once, so the S-1 can record it in real time. See Help.">Record to S-1</button>
+  <button id="export" type="button" title="Download this pattern as a MIDI file">Export MIDI</button>
+</footer>
+<p class="hint">Click: add or remove a step. Drag from an empty step: draw a longer note. Drag a bar's end: resize. Cmd-drag: fill steps. Right-click: edit a step. Shift-click: velocity. Click a note name to hear it. Space: play and stop. T: triplets.</p>
+
+<dialog id="help" class="help" aria-labelledby="help-title">
+  <div class="help-head">
+    <h2 id="help-title">S-1 Grid help</h2>
+    <button id="help-close" type="button">Close</button>
+  </div>
+  <div class="help-body" tabindex="0">
+    <p>A pattern grid and sound editor for the Roland AIRA Compact S-1. It runs in your browser, sends MIDI to the S-1 and doesn't change its firmware. Your patterns stay on this computer. It needs a current Chrome or Edge on a computer. It's unofficial and not affiliated with Roland.</p>
+
+    <h3>Set up</h3>
+    <ol>
+      <li>Connect the S-1 to your computer with a USB-C data cable, and turn it on.</li>
+      <li>Allow MIDI access when asked. The MIDI badge turns green when the S-1 is found. If it says MIDI blocked, click the icon to the left of the address, set <b>MIDI devices</b> to Allow, then click <b>Allow MIDI</b>.</li>
+      <li>Click a note name in the grid. You should hear it on the S-1.</li>
+      <li>Check that <b>Channel</b> at the bottom matches the S-1's MIDI channel. It's 3 unless you've changed it.</li>
+    </ol>
+
+    <h3>Working in a key</h3>
+    <ul>
+      <li>Choose a <b>Key</b> and <b>Scale</b>. The grid only shows notes in that key, so anything you draw fits. The key's root note is highlighted.</li>
+      <li><b>Move notes with key</b> moves all of your patterns into a new key when you change it, keeping each note's place in the scale. Turn it off to leave notes where they are.</li>
+      <li><b>All notes</b> shows every note. Notes outside the key are marked in their row name.</li>
+      <li><b>Draw</b> places a single note, a power chord, a triad or a 7th, using notes from the key. To hear chords, set <b>Polyphony</b> to Poly on the VOICE tab.</li>
+      <li><b>Idea</b> and <b>Generate</b> write a bassline, melody, arpeggio or chord pattern in the key. Generating replaces the current pattern, and <b>Undo</b> brings it back.</li>
+    </ul>
+
+    <h3>Mouse and keyboard</h3>
+    <table>
+      <tbody>
+        <tr><th scope="row">Click a step</th><td>Add or remove it. New steps use the <b>Length</b> setting.</td></tr>
+        <tr><th scope="row">Drag from an empty step</th><td>Draw one note as long as you drag. It snaps to the grid, or hold <kbd>Alt</kbd> for single ticks.</td></tr>
+        <tr><th scope="row">Drag the end of a bar</th><td>Change where a note ends.</td></tr>
+        <tr><th scope="row"><kbd>Cmd</kbd>-drag across steps</th><td>Fill separate steps. Dragging from a filled step removes steps instead.</td></tr>
+        <tr><th scope="row">Right-click a step<br><small>or Control-click on a Mac</small></th><td>Edit velocity, length, timing and probability.</td></tr>
+        <tr><th scope="row">Shift-click a step</th><td>Cycle velocity: full, 70%, 40%.</td></tr>
+        <tr><th scope="row">Click a note name</th><td>Hear that note on the S-1.</td></tr>
+        <tr><th scope="row"><kbd>Space</kbd></th><td>Play and stop.</td></tr>
+        <tr><th scope="row"><kbd>T</kbd></th><td>Turn triplets on or off.</td></tr>
+        <tr><th scope="row"><kbd>Cmd</kbd> or <kbd>Ctrl</kbd> + <kbd>Z</kbd></th><td>Undo.</td></tr>
+        <tr><th scope="row"><kbd>?</kbd> and <kbd>Esc</kbd></th><td>Open this help, and close it or the step editor.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Sound controls</h3>
+    <ul>
+      <li>The panel on the right has every control the S-1 accepts over MIDI, grouped into tabs. Changes are immediate, even during playback.</li>
+      <li>Turning a knob on the S-1 updates the matching control here. A value shown as <b>?</b> hasn't been set or received yet, because the S-1 can't report its settings when asked.</li>
+      <li><b>Save to library</b>, below the controls, saves the current pattern and sound together as a patch in your library folder. Values shown as <b>?</b> keep the value from the patch you loaded, or otherwise the blank patch's.</li>
+      <li>The drawn wave's shape, and settings with no MIDI control, can only be changed on the S-1.</li>
+    </ul>
+
+    <h3>Patch library</h3>
+    <ul>
+      <li>The <b>LIBRARY</b> tab keeps patches as files in a folder you choose on this computer. Each holds a full S-1 pattern: notes, motions, and every sound setting.</li>
+      <li><b>Import backup</b> fills it from an S-1 <b>BACKUP</b> folder, with its patterns that have notes and one blank patch. These are whatever is saved on your S-1, which may include your own edits.</li>
+      <li>Click a patch to load it: the grid fills with its notes, its sound controls update, and its sound is sent to the S-1. The play button also starts playback. A patch's key is estimated from its notes.</li>
+      <li><b>Save to library</b> saves the current pattern and sound as a patch, and works with no notes if you just want to keep a sound. Loading a patch fills in its name, so saving updates it after asking. Type a new name to keep both.</li>
+      <li>Names are entirely up to you: use <b>Name</b> to rename a patch. The S-1 doesn't store names, and its files have fixed names by slot, which the page handles when saving.</li>
+      <li><b>To send several at once:</b> tick patches in the list, then click <b>Send to S-1</b>. Each patch gets a row with its own slot. They start on the next empty slots. To change one, select its row and click a slot, or use its list. The same patch can go to several slots with <b>Add to list</b>.</li>
+      <li><b>To S-1</b> on a single patch opens Save to S-1 with that patch selected.</li>
+      <li>When saving, hovering over a slot shows which library patch it holds, if its contents exactly match one.</li>
+      <li>Some settings have no MIDI control, like delay feedback or a drawn wave, so they won't be heard during live playback. They're kept in the file and work once a patch is on the S-1. Motions play live here too, as a close match. Step sub-divisions don't show or play here, but moving a patch to the S-1 keeps them.</li>
+    </ul>
+
+    <h3>Patterns and the S-1's own memory</h3>
+    <ul>
+      <li>Patterns 1-16 here are stored in this browser, and clearing its data for the site erases them. <b>Export MIDI</b> keeps a copy as a file.</li>
+      <li>Patterns play from this page, so the page must stay open.</li>
+      <li><b>Save to S-1</b> writes a pattern and sound into the S-1's memory, using its USB backup and restore. It takes a restart of the S-1, and the button walks you through it. This isn't a method Roland documents, so keep a copy of the S-1's <b>BACKUP</b> folder.</li>
+      <li>A save holds up to 64 steps, 4 notes per step and values on 1/16 steps. Anything else is rounded or left out, and you're told first. Long notes are saved as tied steps. Settings shown as <b>?</b> stay as they are in the pattern's source. Pan and mod wheel aren't stored in patterns. A pattern loaded from the library keeps its motions, while other saves remove any motions in the slot being replaced. Library patches sent directly are copied exactly.</li>
+      <li><b>Record to S-1</b> plays a pattern once for the S-1 to record instead: select a pattern on the S-1, press REC, then PLAY, then click the button soon after. Timing depends on how it records, and this hasn't been confirmed on the hardware.</li>
+      <li><b>Send clock</b> starts the S-1's own sequencer as well, so you may hear both unless its pattern is empty.</li>
+    </ul>
+
+    <h3>If you hear nothing</h3>
+    <ul>
+      <li>Check that the MIDI badge is green, and reload the page if the S-1 was off when it opened.</li>
+      <li>Check the channel, and that the S-1's volume and filter <b>Cutoff</b> are up. Filter cutoff at minimum gives no sound.</li>
+      <li>Use <b>Panic</b> if a note gets stuck.</li>
+    </ul>
+  </div>
+</dialog>
+<dialog id="save-dialog" class="help save-dialog" aria-labelledby="save-title">
+  <div class="help-head">
+    <h2 id="save-title">Save to S-1</h2>
+    <button id="save-close" type="button">Close</button>
+  </div>
+  <div class="help-body">
+    <section id="save-connect">
+      <p>This saves patterns and sounds onto the S-1, with no recording.</p>
+      <ol>
+        <li>Turn the S-1 off. Then hold <b>PLAY</b> while turning it on.</li>
+        <li>Wait 1-2 minutes for the <b>S-1</b> drive to appear on your computer. The pads show the progress.</li>
+        <li>Choose the drive here.</li>
+      </ol>
+      <button id="save-choose" class="primary" type="button">Choose S-1 drive</button>
+    </section>
+    <section id="save-pick" hidden>
+      <h3>Choose a slot for each patch</h3>
+      <p class="save-note">Select a patch, then click a slot on the S-1 below, or choose one from its list.</p>
+      <ul id="save-rows" class="save-rows"></ul>
+      <div class="save-add">
+        <label>Add
+          <select id="save-source"></select>
+        </label>
+        <button id="save-add" type="button">Add to list</button>
+        <div class="spacer"></div>
+        <button id="save-fill" type="button" title="Gives each patch without a slot the next free slot, in order">Fill empty slots</button>
+        <button id="save-clear" type="button" title="Removes every patch's slot">Clear slots</button>
+      </div>
+      <h3>Slots on the S-1</h3>
+      <p class="save-note">Bank 1-4 and pattern 1-16. Outlined slots already have notes. Clicking a slot gives it to the selected patch.</p>
+      <div id="save-slots" class="save-slots"></div>
+      <ul id="save-warnings" class="save-warnings"></ul>
+      <button id="save-write" class="primary" type="button">Save</button>
+    </section>
+    <section id="save-done" hidden>
+      <h3 id="save-done-title"></h3>
+      <ol>
+        <li>Eject the <b>S-1</b> drive on your computer, and wait for it to disappear.</li>
+        <li>Press <b>HOLD</b> on the S-1.</li>
+        <li>Wait for <b>dOnE</b>, then turn the S-1 off and on again.</li>
+      </ol>
+      <p class="save-note">Restore writes all 64 patterns. The other 63 are copied from the S-1's current saved versions, so they shouldn't change.</p>
+    </section>
+    <p id="save-error" class="status error" role="alert" hidden></p>
+  </div>
+</dialog>
+<script src="music.js"></script>
+<script src="prm.js"></script>
+<script src="params.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
