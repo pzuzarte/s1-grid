@@ -261,6 +261,7 @@ function undo() {
   library.loaded = state.sources[state.current] ? state.sources[state.current].name : null;
   renderLibrary();
   renderAll();
+  if (state.playing) announceTempo();
   saveSoon();
 }
 
@@ -1151,14 +1152,44 @@ function restoreAfterMotions() {
   }
 }
 
-function play() {
+// Plays together with the other grid when both are open. See sync.js.
+const link = Sync.connect({
+  name: "S-1 Grid",
+  checkbox: $("sync"),
+  storageKey: "s1-grid-sync",
+  start({ bpm, at }) {
+    if (state.sendOnce) return false;
+    if (state.playing) stop({ fromLink: true });
+    state.bpm = bpm;
+    $("bpm").value = bpm;
+    play({ startAt: at, fromLink: true });
+    return state.playing;
+  },
+  stop: () => stop({ fromLink: true }),
+  tempo({ bpm, at, pulse }) {
+    state.bpm = bpm;
+    $("bpm").value = bpm;
+    if (!state.playing || !Number.isFinite(pulse)) return;
+    state.nextTime = Sync.aligned({
+      nextTime: state.nextTime, nextPulse: state.nextPulse, at, pulse, msPerPulse: msPerPulse(), pulsesPerBeat: PPQ,
+    });
+  },
+  status: (message, isError) => setStatus(message, isError),
+});
+
+const announceTempo = () => link.announceTempo({
+  bpm: currentBpm(), nextTime: state.nextTime, nextPulse: state.playing ? state.nextPulse : 0,
+});
+
+function play({ startAt = null, fromLink = false } = {}) {
   if (!state.output) {
     setStatus("No MIDI output connected. Connect the S-1 and turn it on.", true);
     return;
   }
   state.playing = true;
   state.nextPulse = 0;
-  state.nextTime = performance.now() + 60;
+  const shared = fromLink || state.sendOnce ? null : link.announcePlay(currentBpm());
+  state.nextTime = startAt ?? shared ?? performance.now() + 60;
   if (sendingClock()) state.output.send([0xFA], state.nextTime);
   $("play").textContent = "Stop";
   $("playhead").hidden = false;
@@ -1170,9 +1201,10 @@ function allNotesOff(at) {
   sendController(CC_ALL_NOTES_OFF, 0, at);
 }
 
-function stop() {
+function stop({ fromLink = false } = {}) {
   state.queued = null;
   if (!state.playing) return;
+  if (!fromLink && !state.sendOnce) link.announceStop();
   if (sendingClock() && state.output) state.output.send([0xFC]);
   state.playing = false;
   state.sendOnce = false;
@@ -2072,7 +2104,7 @@ function bindControls() {
   });
   $("triplets").addEventListener("click", () => setSteps(state.baseResolution, !state.triplets));
   number("bars", setBars);
-  number("bpm", (value) => { state.bpm = currentBpm(); $("bpm").value = state.bpm; void value; });
+  number("bpm", (value) => { state.bpm = currentBpm(); $("bpm").value = state.bpm; announceTempo(); void value; });
   number("octave", (value) => { state.lowOctave = value; renderGrid(); });
   number("span", (value) => { state.span = value; renderGrid(); });
   number("channel", (value) => { state.channel = value - 1; });

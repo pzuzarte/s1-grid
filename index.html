@@ -181,6 +181,9 @@
   <label class="check" title="Sends MIDI clock, start and stop with playback. These also start the S-1's own sequencer.">
     <input id="clock" type="checkbox"> Send clock
   </label>
+  <label class="check" title="Plays together with the other grid when both are open in this browser. Play, stop and tempo are shared.">
+    <input id="sync" type="checkbox"> Sync
+  </label>
   <button id="save-open" class="primary" type="button" title="Save this pattern and sound onto a pattern on the S-1">Save to S-1</button>
   <button id="send" type="button" title="Plays this pattern once, so the S-1 can record it in real time. See Help.">Record to S-1</button>
   <button id="import" type="button" title="Replace this pattern with the notes from a MIDI file. Undo brings the old one back.">Import MIDI</button>
@@ -263,6 +266,7 @@
       <li><b>Save to S-1</b> writes a pattern and sound into the S-1's memory, using its USB backup and restore. It takes a restart of the S-1, and the button walks you through it. This isn't a method Roland documents, so keep a copy of the S-1's <b>BACKUP</b> folder.</li>
       <li>A save holds up to 64 steps, 4 notes per step and values on 1/16 steps. Anything else is rounded or left out, and you're told first. Long notes are saved as tied steps. Settings shown as <b>?</b> stay as they are in the pattern's source. Pan and mod wheel aren't stored in patterns. A pattern loaded from the library keeps its motions, while other saves remove any motions in the slot being replaced. Library patches sent directly are copied exactly.</li>
       <li><b>Record to S-1</b> plays a pattern once for the S-1 to record instead: select a pattern on the S-1, press REC, then PLAY, then click the button soon after. Timing depends on how it records, and this hasn't been confirmed on the hardware.</li>
+      <li><b>Sync</b> plays this page together with <a href="https://pzuzarte.github.io/mpc-grid/" target="_blank" rel="noopener">MPC Grid</a> when both are open in the same browser, each with its MIDI connected. Pressing Play or Stop on either one starts or stops both, from the start of their patterns, at the tempo of the page you pressed. Changing the BPM on either changes both. Patterns of different lengths each loop in their own time. Untick it on either page to play them separately.</li>
       <li><b>Send clock</b> starts the S-1's own sequencer as well, so you may hear both unless its pattern is empty.</li>
     </ul>
 
@@ -323,6 +327,7 @@
 <script src="music.js"></script>
 <script src="prm.js"></script>
 <script src="params.js"></script>
+<script src="sync.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

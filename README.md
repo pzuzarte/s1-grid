@@ -28,6 +28,8 @@ never receives your patterns or patches.
 - **Patch library:** keep patches as files in a folder on your computer, import them from
   an S-1 backup, and load one to fill the grid, update the controls, and hear it on the S-1,
   including its motions.
+- **Play with MPC Grid:** with [MPC Grid](https://pzuzarte.github.io/mpc-grid/) open in the
+  same browser, Play, Stop and tempo on either page control both.
 - **Save to the S-1:** send patterns and library patches straight to chosen slots among its
   64 patterns, one at a time or as a batch, using its USB backup and restore, with no
   recording. Library names are entirely yours, as the S-1 stores patterns by slot number.
