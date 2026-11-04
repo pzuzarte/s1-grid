@@ -886,6 +886,10 @@ function updateParamControl(cc) {
   const known = value !== undefined;
   const { param, select, input, output } = control;
   if (select) {
+    // ? only means something until the value is known, so it isn't an option after that.
+    const unknownOption = select.querySelector('option[value=""]');
+    if (known && unknownOption) unknownOption.remove();
+    if (!known && !unknownOption) select.prepend(new Option("?", ""));
     select.value = known ? String(Math.min(value, param.options.length - 1)) : "";
     select.classList.toggle("unknown", !known);
     return;
