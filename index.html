@@ -176,7 +176,7 @@
   <button id="send" type="button" title="Plays this pattern once, so the S-1 can record it in real time. See Help.">Record to S-1</button>
   <button id="export" type="button" title="Download this pattern as a MIDI file">Export MIDI</button>
 </footer>
-<p class="hint">Click: add or remove a step. Drag from an empty step: draw a longer note. Drag a bar's end: resize. Cmd-drag: fill steps. Right-click: edit a step. Shift-click: velocity. Click a note name to hear it. Space: play and stop. T: triplets.</p>
+<p class="hint">Click: add or remove a step. Drag from an empty step: draw a note. Drag a note: change its length. Cmd-drag: fill steps. Right-click: edit a step. Shift-click: velocity. Click a note name to hear it. Space: play and stop. T: triplets.</p>
 
 <dialog id="help" class="help" aria-labelledby="help-title">
   <div class="help-head">
@@ -206,9 +206,9 @@
     <h3>Mouse and keyboard</h3>
     <table>
       <tbody>
-        <tr><th scope="row">Click a step</th><td>Add or remove it. New steps use the <b>Length</b> setting.</td></tr>
+        <tr><th scope="row">Click a step</th><td>Add or remove it, as long as you don't drag. New steps use the <b>Length</b> setting.</td></tr>
         <tr><th scope="row">Drag from an empty step</th><td>Draw one note as long as you drag. It snaps to the grid, or hold <kbd>Alt</kbd> for single ticks.</td></tr>
-        <tr><th scope="row">Drag the end of a bar</th><td>Change where a note ends.</td></tr>
+        <tr><th scope="row">Drag a note</th><td>Change where it ends, from anywhere on its first step or its end marker. It snaps to the grid, or hold <kbd>Alt</kbd> for single ticks.</td></tr>
         <tr><th scope="row"><kbd>Cmd</kbd>-drag across steps</th><td>Fill separate steps. Dragging from a filled step removes steps instead.</td></tr>
         <tr><th scope="row">Right-click a step<br><small>or Control-click on a Mac</small></th><td>Edit velocity, length, timing and probability.</td></tr>
         <tr><th scope="row">Shift-click a step</th><td>Cycle velocity: full, 70%, 40%.</td></tr>

@@ -7,6 +7,7 @@ const SCHEDULE_AHEAD_MS = 150;
 const CHUNK_PULSES = 10; // Must divide CLOCK_PULSES.
 const CLOCK_PULSES = PPQ / 24;
 const VELOCITY_STEPS = [1.0, 0.7, 0.4];
+const DRAG_THRESHOLD_PX = 4; // A press that moves less than this counts as a click.
 const MIN_CELL_PX = 14; // Below this, steps are too small to click reliably.
 const DENSE_CELL_PX = 22;
 const DEFAULT_CHANNEL = 2; // Channel 3, the S-1's default.
@@ -539,6 +540,10 @@ function moveLengthDrag(event) {
     if (event.clientX <= box.right) return;
     drag.moved = true;
   }
+  if (drag.pressed && !drag.moved) {
+    if (Math.abs(event.clientX - drag.startX) < DRAG_THRESHOLD_PX) return;
+    drag.moved = true;
+  }
   const gap = parseFloat(getComputedStyle($("grid")).getPropertyValue("--grid-gap")) || 0;
   const pointer = drag.anchorTime + ((event.clientX - box.left) / (box.width + gap)) * state.resolution;
   const start = drag.items[0].time;
@@ -602,10 +607,15 @@ function bindGridEvents() {
       } else {
         state.paint = { on: true };
       }
-    } else {
+    } else if (event.metaKey) {
       slot().notes = notes().filter((n) => !notesInCell(note, time).includes(n));
       paintCell(cell);
       state.paint = { on: false };
+    } else {
+      // Dragging a note resizes it, so it's only removed by a click that doesn't move.
+      state.lengthDrag = {
+        items: notesInCell(note, time), anchorTime: time, cell, pressed: true, startX: event.clientX,
+      };
     }
     renderChrome();
     saveSoon();
@@ -624,6 +634,12 @@ function bindGridEvents() {
     renderChrome();
   });
   window.addEventListener("pointerup", () => {
+    const drag = state.lengthDrag;
+    if (drag && drag.pressed && !drag.moved) {
+      slot().notes = notes().filter((n) => !drag.items.includes(n));
+      paintCell(drag.cell);
+      renderChrome();
+    }
     if (state.lengthDrag || state.paint) saveSoon();
     state.lengthDrag = null;
     state.paint = null;
