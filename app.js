@@ -8,6 +8,8 @@ const CHUNK_PULSES = 10; // Must divide CLOCK_PULSES.
 const CLOCK_PULSES = PPQ / 24;
 const VELOCITY_STEPS = [1.0, 0.7, 0.4];
 const DRAG_THRESHOLD_PX = 4; // A press that moves less than this counts as a click.
+const FINE_DIVISIONS = 8; // Resizing moves in eighths of a step, or quarters when steps are narrow.
+const NARROW_STEP_PX = 32;
 const MIN_CELL_PX = 14; // Below this, steps are too small to click reliably.
 const DENSE_CELL_PX = 22;
 const DEFAULT_CHANNEL = 2; // Channel 3, the S-1's default.
@@ -528,8 +530,27 @@ function startLengthDrag(event, handle) {
     && n.time < anchorTime + state.resolution && n.time + n.length > anchorTime);
   if (!found) return;
   remember();
-  state.lengthDrag = { items: [found], anchorTime, cell };
+  state.lengthDrag = { items: [found], anchorTime, cell, pressed: true, startX: event.clientX };
   event.preventDefault();
+}
+
+// Where a resize ends. Drawing a new note uses whole steps, while resizing is finer so
+// a note can end inside a step. Alt gives single ticks.
+function dragEnd(event, drag, start, currentLength, box) {
+  const gap = parseFloat(getComputedStyle($("grid")).getPropertyValue("--grid-gap")) || 0;
+  const ticksAt = (x) => drag.anchorTime + ((x - box.left) / (box.width + gap)) * state.resolution;
+  // Follows the mouse from where the note was grabbed, so it doesn't jump at the start.
+  if (!drag.drawing && drag.grabOffset === undefined) {
+    drag.grabOffset = start + currentLength - ticksAt(drag.startX);
+  }
+  const pointer = ticksAt(event.clientX) + (drag.grabOffset || 0);
+  if (event.altKey) return { end: Math.round(pointer), shortest: start + 1 };
+  const divisions = box.width < NARROW_STEP_PX ? FINE_DIVISIONS / 2 : FINE_DIVISIONS;
+  const unit = drag.drawing ? state.resolution : state.resolution / divisions;
+  return {
+    end: Math.round(pointer / unit) * unit,
+    shortest: Math.floor(start / unit) * unit + unit,
+  };
 }
 
 function moveLengthDrag(event) {
@@ -544,13 +565,9 @@ function moveLengthDrag(event) {
     if (Math.abs(event.clientX - drag.startX) < DRAG_THRESHOLD_PX) return;
     drag.moved = true;
   }
-  const gap = parseFloat(getComputedStyle($("grid")).getPropertyValue("--grid-gap")) || 0;
-  const pointer = drag.anchorTime + ((event.clientX - box.left) / (box.width + gap)) * state.resolution;
   const start = drag.items[0].time;
-  // Snaps to steps, so a cut lands exactly on the grid. Alt gives single ticks.
-  let end = event.altKey ? Math.round(pointer) : Math.round(pointer / state.resolution) * state.resolution;
-  const shortest = event.altKey ? start + 1 : Math.floor(start / state.resolution) * state.resolution + state.resolution;
-  end = Math.max(shortest, Math.min(end, state.windowStart + state.windowSpan, lengthPulses()));
+  const target = dragEnd(event, drag, start, drag.items[0].length, box);
+  const end = Math.max(target.shortest, Math.min(target.end, state.windowStart + state.windowSpan, lengthPulses()));
   const length = end - start;
   if (length !== drag.items[0].length) {
     drag.items.forEach((item) => { item.length = length; });
