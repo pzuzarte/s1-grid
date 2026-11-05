@@ -2931,19 +2931,27 @@ function renderVary(showingOriginal) {
   $("vary-compare").setAttribute("aria-pressed", String(showingOriginal));
 }
 
-// Sets every control for the chosen idea. The sound before it stays a click away.
-function initSound() {
+// Sets every control. The sound before it stays a click away.
+function applyInitSound(values, message) {
   if (state.preview) stop();
-  const kind = $("generator").value;
   state.varyOriginal = { ...state.values };
   state.varyLatest = null;
   state.delay.sync = 0;
-  applySound(S1Params.startingSound(kind));
+  applySound(values);
   state.varyLatest = { ...state.values };
   renderVary(false);
   saveSoon();
   const sent = state.output ? "Hear original brings back the sound you had." : "No MIDI output, so it wasn't sent to the S-1.";
-  setStatus(`${Music.GENERATORS[kind]} starting sound. Every control is set. ${sent}`, !state.output);
+  setStatus(`${message} ${sent}`, !state.output);
+}
+
+function initSound() {
+  const kind = $("generator").value;
+  applyInitSound(S1Params.startingSound(kind), `${Music.GENERATORS[kind]} starting sound. Every control is set.`);
+}
+
+function initSine() {
+  applyInitSound(S1Params.sineSound(), "Close to a sine wave, using a filtered square. Move Cutoff to fine-tune it.");
 }
 
 function varySound(amount) {
@@ -3168,6 +3176,7 @@ function bindControls() {
   $("generate").addEventListener("click", generatePattern);
   $("generator").addEventListener("change", initSound);
   $("init-sound").addEventListener("click", initSound);
+  $("init-sine").addEventListener("click", initSine);
   $("undo").addEventListener("click", undo);
   $("duplicate").addEventListener("click", duplicatePattern);
   $("clear").addEventListener("click", () => {

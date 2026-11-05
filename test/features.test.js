@@ -130,6 +130,21 @@ test("starting sounds suit their idea", () => {
   }
 });
 
+test("the sine sound uses only a filtered square wave, with nothing moving it", () => {
+  const sine = S1Params.sineSound();
+  assert.deepEqual(Object.keys(sine).map(Number).sort((a, b) => a - b),
+    S1Params.ALL.map((param) => param.cc).sort((a, b) => a - b));
+  // Only the square sounds, at an even pulse width.
+  assert.equal(sine[19], 127);
+  for (const cc of [20, 21, 23, 15]) assert.equal(sine[cc], 0);
+  // No resonance or movement, and the filter follows the keyboard.
+  for (const cc of [71, 24, 25, 13, 1, 17, 107, 103]) assert.equal(sine[cc], 0);
+  assert.equal(sine[26], 127);
+  // A steady level, with no effects.
+  assert.equal(sine[30], 127);
+  for (const cc of [92, 91, 93]) assert.equal(sine[cc], 0);
+});
+
 test("delay time in ms follows the S-1's display", () => {
   assert.equal(S1Params.delayMs(0), 1);
   assert.equal(S1Params.delayMs(127), 740);

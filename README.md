@@ -63,7 +63,7 @@ Then open http://localhost:8773 in Chrome and allow MIDI access.
   live playback. They're kept in the file and work once a patch is on the S-1.
 
 - The S-1 can't report its current settings over MIDI. A value shows as ? until you set it
-  here, move its knob, or use Init sound.
+  here, move its knob, or use Init.
 - Patterns play from this page, so it must stay open.
 - Save to S-1 uses the S-1's restore feature in a way Roland doesn't document, so keep a
   copy of its BACKUP folder. Saves hold 64 steps, 4 notes per step and values on 1/16 steps,

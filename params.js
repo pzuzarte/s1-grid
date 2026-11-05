@@ -179,6 +179,17 @@ const S1Params = (() => {
 
   const startingSound = (kind) => ({ ...NEUTRAL, ...STARTING_SOUNDS[kind] });
 
+  /* The S-1 has no sine wave, so this comes as close as it can. A square wave only has odd
+     harmonics, the nearest being far above the note, so a low-pass filter just above the
+     note leaves mostly its fundamental. Full key follow keeps that true up the keyboard. */
+  const sineSound = () => ({
+    ...NEUTRAL,
+    19: 127, 20: 0, 21: 0, 23: 0, 15: 0, 16: 1,
+    74: 48, 71: 0, 24: 0, 25: 0, 26: 127,
+    73: 1, 75: 64, 30: 127, 72: 10,
+    17: 0,
+  });
+
   // The S-1's delay time in ms with sync off, from S-1 Utility's readings of its display.
   const DELAY_RAW = [0, 11, 26, 55, 106, 179, 245, 255];
   const DELAY_MS = [1, 14, 44, 103, 273, 517, 737, 740];
@@ -210,7 +221,7 @@ const S1Params = (() => {
     return { changes, unknown };
   }
 
-  return { ALL, BY_CC, SECTIONS, STARTING_SOUNDS, delayMs, display, startingSound, vary };
+  return { ALL, BY_CC, SECTIONS, STARTING_SOUNDS, delayMs, display, sineSound, startingSound, vary };
 })();
 
 if (typeof module !== "undefined") module.exports = S1Params;
