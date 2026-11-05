@@ -115,7 +115,8 @@
     <div id="library" class="library" hidden>
       <div class="library-actions">
         <button id="library-folder" type="button">Choose library folder</button>
-        <button id="library-import" type="button" title="Copy patches from an S-1 BACKUP folder into the library">Import backup</button>
+        <button id="library-from-s1" class="primary" type="button" title="Choose which patterns on the S-1 to copy into the library">Import from S-1</button>
+        <button id="library-import" type="button" title="Copy every pattern from an S-1 BACKUP folder into the library">Import backup</button>
       </div>
       <p id="library-state" class="library-state"></p>
       <input id="library-search" type="search" placeholder="Search patches" aria-label="Search patches" spellcheck="false">
@@ -248,6 +249,7 @@
     <h3>Patch library</h3>
     <ul>
       <li>The <b>LIBRARY</b> tab keeps patches as files in a folder you choose on this computer. Each holds a full S-1 pattern: notes, motions, and every sound setting.</li>
+      <li><b>Import from S-1</b> lets you pick which of the S-1's 64 patterns to copy into the library, and name each one. It reads the S-1's USB drive, or a <b>BACKUP</b> folder you saved, and doesn't change anything on the S-1.</li>
       <li><b>Import backup</b> fills it from an S-1 <b>BACKUP</b> folder, with its patterns that have notes and one blank patch. These are whatever is saved on your S-1, which may include your own edits.</li>
       <li>Click a patch to load it: the grid fills with its notes, its sound controls update, and its sound is sent to the S-1. The play button also starts playback. A patch's key is estimated from its notes.</li>
       <li><b>Save to library</b> saves the current pattern and sound as a patch, and works with no notes if you just want to keep a sound. Loading a patch fills in its name, so saving updates it after asking. Type a new name to keep both.</li>
@@ -322,6 +324,43 @@
       <p class="save-note">Restore writes all 64 patterns. The other 63 are copied from the S-1's current saved versions, so they shouldn't change.</p>
     </section>
     <p id="save-error" class="status error" role="alert" hidden></p>
+  </div>
+</dialog>
+<dialog id="import-dialog" class="help save-dialog" aria-labelledby="import-title">
+  <div class="help-head">
+    <h2 id="import-title">Import from S-1</h2>
+    <button id="import-close" type="button">Close</button>
+  </div>
+  <div class="help-body">
+    <section id="import-connect">
+      <p>This copies patterns and sounds from the S-1 into your library. Nothing on the S-1 changes.</p>
+      <ol>
+        <li>Turn the S-1 off. Then hold <b>PLAY</b> while turning it on.</li>
+        <li>Wait 1-2 minutes for the <b>S-1</b> drive to appear on your computer. The pads show the progress.</li>
+        <li>Choose the drive here. A <b>BACKUP</b> folder you saved earlier works too.</li>
+      </ol>
+      <button id="import-choose" class="primary" type="button">Choose S-1 drive</button>
+    </section>
+    <section id="import-pick" hidden>
+      <h3>Click the patches to import</h3>
+      <p class="save-note">Bank 1-4 and pattern 1-16. Outlined slots have notes. Click a chosen slot again to remove it. Hovering over a slot shows what's in it.</p>
+      <div id="import-slots" class="save-slots"></div>
+      <div class="save-add">
+        <button id="import-select-new" type="button" title="Chooses every slot with notes that isn't already in the library">Select new patterns</button>
+        <button id="import-clear" type="button">Clear</button>
+      </div>
+      <h3>What will be imported</h3>
+      <p class="save-note">Name them however you like. Nothing in your library is replaced.</p>
+      <p id="import-none" class="save-note">Nothing chosen yet.</p>
+      <ul id="import-rows" class="save-rows"></ul>
+      <button id="import-write" class="primary" type="button" disabled>Import</button>
+    </section>
+    <section id="import-done" hidden>
+      <h3 id="import-done-title"></h3>
+      <p>If you used the S-1 drive, eject it on your computer and wait for it to disappear, then turn the S-1 off and on again. Don't press <b>HOLD</b>, as there's nothing to restore.</p>
+      <button id="import-done-close" class="primary" type="button">Done</button>
+    </section>
+    <p id="import-error" class="status error" role="alert" hidden></p>
   </div>
 </dialog>
 <script src="music.js"></script>

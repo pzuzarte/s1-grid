@@ -1767,10 +1767,11 @@ function renderLibrary() {
   button.textContent = label;
   const ready = library.status === "ready";
   $("library-import").disabled = !ready;
+  $("library-from-s1").disabled = !ready;
   $("library-search").disabled = !ready;
   if (ready) {
     const skipped = library.skipped ? ` ${library.skipped} file(s) couldn't be read.` : "";
-    const hint = library.items.length ? "" : " Use Import backup to add your S-1's patches.";
+    const hint = library.items.length ? "" : " Use Import from S-1 to add your S-1's patches.";
     setLibraryState(`"${library.folder.name}": ${library.items.length} patch(es).${skipped}${hint}`);
   } else {
     setLibraryState(message);
@@ -1999,6 +2000,213 @@ async function importFromFolder(folder) {
   }
 }
 
+/* ---------- Importing chosen patches from the S-1 ---------- */
+
+// Slots read from the drive, and the name each chosen slot will be saved under.
+const importState = { slots: [], names: new Map() };
+
+function showImportSection(id) {
+  for (const section of ["import-connect", "import-pick", "import-done"]) {
+    $(section).hidden = section !== id;
+  }
+  showImportError("");
+}
+
+function showImportError(message) {
+  $("import-error").textContent = message;
+  $("import-error").hidden = !message;
+}
+
+function openImportDialog() {
+  closeNoteEditor({ restoreFocus: false });
+  Object.assign(importState, { slots: [], names: new Map() });
+  showImportSection("import-connect");
+  $("import-dialog").showModal();
+}
+
+async function chooseImportDrive() {
+  showImportError("");
+  let folder;
+  try {
+    folder = await window.showDirectoryPicker({ id: "s1-import", mode: "read" });
+  } catch (error) {
+    if (error.name !== "AbortError") showImportError(`Couldn't open that folder: ${error.message}`);
+    return;
+  }
+  await readImportSlots(folder);
+}
+
+// Works with the S-1 drive, or a BACKUP folder saved earlier.
+async function readImportSlots(folder) {
+  try {
+    let source = folder;
+    try {
+      source = await folder.getDirectoryHandle("BACKUP");
+    } catch (error) {
+      if (error.name !== "NotFoundError") throw error;
+    }
+    const byContents = new Map(library.items.map((item) => [item.text, item.name]));
+    const decode = new TextDecoder("ascii");
+    const slots = [];
+    for (let slotIndex = 0; slotIndex < S1_DRIVE_FILES; slotIndex += 1) {
+      let entry = null;
+      try {
+        const file = await (await source.getFileHandle(Prm.fileName(slotIndex))).getFile();
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        const text = decode.decode(bytes);
+        if (!Prm.validate(text).length) {
+          entry = { bytes, info: Prm.describe(text), bpm: Prm.readBpm(text), match: byContents.get(text) || null };
+        }
+      } catch (error) {
+        if (error.name !== "NotFoundError") throw error;
+      }
+      slots.push(entry);
+    }
+    if (!slots.some(Boolean)) {
+      showImportError("That doesn't look like the S-1 drive. It should contain a BACKUP folder with the S-1's pattern files.");
+      return;
+    }
+    importState.slots = slots;
+    importState.names = new Map();
+    showImportSection("import-pick");
+    renderImportPicker();
+  } catch (error) {
+    showImportError(`Couldn't read the S-1 drive: ${error.message}`);
+  }
+}
+
+function describeImportSlot(slotIndex) {
+  const entry = importState.slots[slotIndex];
+  if (!entry) return "couldn't be read";
+  const contents = entry.info.notes ? `${entry.info.notes} steps with notes, ${entry.bpm} BPM` : "no notes";
+  return entry.match ? `${contents}, same as "${entry.match}" in the library` : contents;
+}
+
+function toggleImportSlot(slotIndex) {
+  if (importState.names.has(slotIndex)) {
+    importState.names.delete(slotIndex);
+  } else {
+    const taken = [...library.items.map((item) => item.name), ...importState.names.values()];
+    importState.names.set(slotIndex, Prm.uniqueName(`S-1 ${Prm.slotLabel(slotIndex)}`, taken));
+  }
+  renderImportPicker();
+}
+
+function renderImportPicker() {
+  $("import-slots").replaceChildren(...importState.slots.map((entry, slotIndex) => {
+    const button = document.createElement("button");
+    const chosen = importState.names.has(slotIndex);
+    button.type = "button";
+    button.textContent = Prm.slotLabel(slotIndex);
+    button.disabled = !entry;
+    button.classList.toggle("has-notes", Boolean(entry) && entry.info.notes > 0);
+    button.classList.toggle("assigned", chosen);
+    button.setAttribute("aria-pressed", String(chosen));
+    button.title = `${Prm.slotLabel(slotIndex)}: ${describeImportSlot(slotIndex)}`;
+    button.setAttribute("aria-label", `Pattern ${button.title}`);
+    button.addEventListener("click", () => toggleImportSlot(slotIndex));
+    return button;
+  }));
+  const chosen = [...importState.names.keys()].sort((a, b) => a - b);
+  $("import-rows").replaceChildren(...chosen.map(importRow));
+  $("import-none").hidden = chosen.length > 0;
+  checkImportNames();
+}
+
+function importRow(slotIndex) {
+  const row = document.createElement("li");
+  row.className = "save-row import-row";
+  row.dataset.slot = String(slotIndex);
+  const label = document.createElement("span");
+  label.className = "import-row-slot";
+  label.textContent = Prm.slotLabel(slotIndex);
+  label.title = describeImportSlot(slotIndex);
+  const name = document.createElement("input");
+  name.type = "text";
+  name.maxLength = 60;
+  name.spellcheck = false;
+  name.value = importState.names.get(slotIndex);
+  name.setAttribute("aria-label", `Name for pattern ${Prm.slotLabel(slotIndex)}`);
+  name.addEventListener("input", () => {
+    importState.names.set(slotIndex, name.value);
+    checkImportNames();
+  });
+  const note = document.createElement("span");
+  note.className = "save-row-replace";
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.textContent = "×";
+  remove.setAttribute("aria-label", `Remove ${Prm.slotLabel(slotIndex)}`);
+  remove.addEventListener("click", () => toggleImportSlot(slotIndex));
+  row.append(label, name, note, remove);
+  return row;
+}
+
+// Why a name can't be used, if it can't. Nothing in the library is ever replaced.
+function importNameProblem(slotIndex) {
+  const raw = importState.names.get(slotIndex);
+  let name;
+  try {
+    name = cleanPatchName(raw);
+  } catch {
+    return raw.trim() ? "Letters, numbers, spaces and _ . ( ) # + - only" : "Needs a name";
+  }
+  const lower = name.toLowerCase();
+  if (library.items.some((item) => item.name.toLowerCase() === lower)) return "Already in the library";
+  const repeated = [...importState.names].some(([other, value]) => other !== slotIndex
+    && value.trim().replace(/\.prm$/i, "").toLowerCase() === lower);
+  return repeated ? "Used twice" : "";
+}
+
+function checkImportNames() {
+  let problems = 0;
+  for (const row of $("import-rows").children) {
+    const slotIndex = Number(row.dataset.slot);
+    const problem = importNameProblem(slotIndex);
+    if (problem) problems += 1;
+    const { match } = importState.slots[slotIndex];
+    const note = row.querySelector(".save-row-replace");
+    note.textContent = problem || (match ? `Same as "${match}"` : "");
+    note.title = note.textContent;
+  }
+  const count = importState.names.size;
+  $("import-write").disabled = !count || problems > 0;
+  $("import-write").textContent = count ? `Import ${count} ${count === 1 ? "patch" : "patches"}` : "Import";
+}
+
+function selectNewImportSlots() {
+  importState.slots.forEach((entry, slotIndex) => {
+    if (entry && entry.info.notes && !entry.match && !importState.names.has(slotIndex)) {
+      toggleImportSlot(slotIndex);
+    }
+  });
+}
+
+async function writeImportedPatches() {
+  const chosen = [...importState.names.keys()].sort((a, b) => a - b);
+  let written = 0;
+  try {
+    const files = chosen.map((slotIndex) => [slotIndex, `${cleanPatchName(importState.names.get(slotIndex))}${PATCH_EXTENSION}`]);
+    for (const [, file] of files) {
+      if (await fileExists(library.folder, file)) throw new Error(`"${file}" is already in the library.`);
+    }
+    for (const [slotIndex, file] of files) {
+      await writeBytes(library.folder, file, importState.slots[slotIndex].bytes);
+      written += 1;
+    }
+  } catch (error) {
+    await readLibrary();
+    renderLibrary();
+    showImportError(`Imported ${written} of ${chosen.length}, then stopped: ${error.message}`);
+    return;
+  }
+  await readLibrary();
+  renderLibrary();
+  $("import-done-title").textContent = `Imported ${written} ${written === 1 ? "patch" : "patches"} into your library.`;
+  showImportSection("import-done");
+  setStatus(`Imported ${written} ${written === 1 ? "patch" : "patches"} from the S-1.`);
+}
+
 /* ---------- Loading a patch ---------- */
 
 function renderPatchName() {
@@ -2151,6 +2359,16 @@ function bindControls() {
     chooseLibraryFolder().finally(renderLibrary);
   });
   $("library-import").addEventListener("click", importBackup);
+  $("library-from-s1").addEventListener("click", openImportDialog);
+  $("import-close").addEventListener("click", () => $("import-dialog").close());
+  $("import-done-close").addEventListener("click", () => $("import-dialog").close());
+  $("import-choose").addEventListener("click", chooseImportDrive);
+  $("import-select-new").addEventListener("click", selectNewImportSlots);
+  $("import-clear").addEventListener("click", () => {
+    importState.names.clear();
+    renderImportPicker();
+  });
+  $("import-write").addEventListener("click", writeImportedPatches);
   $("library-select-all").addEventListener("click", () => {
     visiblePatches().forEach((item) => library.selected.add(item.name));
     renderLibrary();
@@ -2202,7 +2420,7 @@ function bindControls() {
 
   const typing = (target) => /^(INPUT|SELECT|TEXTAREA)$/.test(target.tagName);
   window.addEventListener("keydown", (event) => {
-    if ($("help").open || $("save-dialog").open) return;
+    if ($("help").open || $("save-dialog").open || $("import-dialog").open) return;
     if (event.key === "?" && !typing(event.target)) {
       openHelp();
       return;

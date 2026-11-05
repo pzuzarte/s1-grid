@@ -218,7 +218,12 @@ button.primary { min-width: 68px; background: var(--accent); border-color: var(-
 
 .library { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; }
 .library-actions, .library-save { display: flex; gap: 6px; }
-.library-actions button { flex: 1; padding: 0 6px; font-size: 12px; }
+.library-actions { flex-wrap: wrap; }
+.library-actions button { flex: 1 1 auto; padding: 0 6px; font-size: 12px; }
+.import-row-slot { flex: none; font-size: 12px; font-variant-numeric: tabular-nums; }
+.import-row input { flex: 1; min-width: 0; height: 28px; font-size: 13px; background: var(--bg); }
+.import-row .save-row-replace { flex: 0 1 auto; max-width: 40%; overflow: hidden; text-overflow: ellipsis; }
+.save-slots button:disabled { opacity: 0.35; cursor: not-allowed; }
 .library-batch { display: flex; gap: 4px; }
 .library-batch button { flex: none; height: 28px; padding: 0 7px; font-size: 12px; }
 .library-batch #library-send { flex: 1; }

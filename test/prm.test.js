@@ -5,6 +5,12 @@ const path = require("node:path");
 const { test } = require("node:test");
 const Prm = require("../prm.js");
 
+test("a suggested patch name avoids names in use, ignoring case", () => {
+  assert.equal(Prm.uniqueName("S-1 1-01", []), "S-1 1-01");
+  assert.equal(Prm.uniqueName("S-1 1-01", ["s-1 1-01"]), "S-1 1-01 (2)");
+  assert.equal(Prm.uniqueName("S-1 1-01", ["S-1 1-01", "S-1 1-01 (2)"]), "S-1 1-01 (3)");
+});
+
 function makeTemplate() {
   const lines = ["LENG\t= 16", "TEMPO\t= 10000", "TRANSPOSE\t= 0", "MOTION_CC1\t= 74"];
   for (let slot = 2; slot <= 8; slot += 1) lines.push(`MOTION_CC${slot}\t= -1`);

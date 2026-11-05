@@ -25,8 +25,8 @@ never receives your patterns or patches.
   tabs. Knobs moved on the S-1 update the page.
 - **Saved sounds:** store and recall named sets of values in the browser.
 - **16 patterns:** with MIDI file import and export, and octave up and down buttons.
-- **Patch library:** keep patches as files in a folder on your computer, import them from
-  an S-1 backup, and load one to fill the grid, update the controls, and hear it on the S-1,
+- **Patch library:** keep patches as files in a folder on your computer, pick which ones to
+  import from the S-1 or an S-1 backup, and load one to fill the grid, update the controls, and hear it on the S-1,
   including its motions.
 - **Play with MPC Grid:** with [MPC Grid](https://pzuzarte.github.io/mpc-grid/) open in the
   same browser, Play, Stop and tempo on either page control both.

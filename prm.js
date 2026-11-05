@@ -93,6 +93,15 @@ const Prm = (() => {
     return `S1_PTN${bank}-${pattern}.PRM`;
   }
 
+  // A name not yet in use, ignoring case as Mac and Windows folders do.
+  function uniqueName(base, taken) {
+    const used = new Set([...taken].map((name) => name.toLowerCase()));
+    if (!used.has(base.toLowerCase())) return base;
+    let count = 2;
+    while (used.has(`${base} (${count})`.toLowerCase())) count += 1;
+    return `${base} (${count})`;
+  }
+
   function slotLabel(slot) {
     return `${Math.floor(slot / 16) + 1}-${String((slot % 16) + 1).padStart(2, "0")}`;
   }
@@ -340,6 +349,7 @@ const Prm = (() => {
     readValues,
     render,
     slotLabel,
+    uniqueName,
     validate,
   };
 })();
