@@ -35,9 +35,10 @@
   <div id="slots" class="slots"></div>
   <span id="patch-name" class="pill" hidden></span>
   <div class="spacer"></div>
-  <label>Idea
+  <label title="Choosing an idea also sets the sound to a starting point for it">Idea
     <select id="generator"></select>
   </label>
+  <button id="init-sound" type="button" title="Sets every sound control to a starting point for this idea. Hear original brings back the sound you had.">Init sound</button>
   <button id="generate" type="button" title="Replaces this pattern with a new one in the key. Undo brings the old one back.">Generate</button>
   <button id="undo" type="button" disabled>Undo</button>
   <button id="duplicate" type="button" title="Copy this pattern to the next empty slot">Duplicate</button>
@@ -275,6 +276,7 @@
       <li><b>All notes</b> shows every note. Notes outside the key are marked in their row name.</li>
       <li><b>Draw</b> places a single note, a power chord, a triad or a 7th, using notes from the key. To hear chords, set <b>Polyphony</b> to Poly on the VOICE tab.</li>
       <li><b>Idea</b> and <b>Generate</b> write a bassline, melody, arpeggio or chord pattern in the key. Generating replaces the current pattern, and <b>Undo</b> brings it back.</li>
+      <li>Choosing an <b>Idea</b> also sets every sound control to a good starting point for it, such as a round, punchy tone for a bassline. <b>Init sound</b> does the same for the idea already chosen. <b>Hear original</b>, under the sound controls, brings back the sound you had. Generating doesn't change the sound, so you can try more patterns without losing your tweaks.</li>
       <li><b>Shift</b> moves the whole pattern a step earlier or later, wrapping around. <b>Scale</b> moves every note a step through the scale, and <b>Oct</b> moves them an octave.</li>
       <li>Click or drag along the <b>step numbers</b> above the grid to choose steps. <b>Copy</b> (or <kbd>Cmd</kbd>+<kbd>C</kbd>) copies their notes. Choose where they go, in this pattern or another, then <b>Paste</b> (or <kbd>Cmd</kbd>+<kbd>V</kbd>), which replaces what's there. Click a chosen step again or press <kbd>Esc</kbd> to clear.</li>
       <li><b>Velocity</b> and <b>Set</b> change every note in the chosen steps, or the whole pattern if none are chosen.</li>
@@ -317,7 +319,7 @@
       <li><b>Vary</b> nudges the sound's levels a little or a lot, leaving tuning, pan and switches alone. <b>Hear original</b> flips between the sound before you started and the new one.</li>
       <li>The panel on the right has every control the S-1 accepts over MIDI, grouped into tabs. Changes are immediate, even during playback.</li>
       <li>The sound stays the same when you switch patterns. Only loading a patch or a saved sound changes it, and saving a pattern saves the sound as it is then.</li>
-      <li>Turning a knob on the S-1 updates the matching control here. A value shown as <b>?</b> hasn't been set or received yet, because the S-1 can't report its settings when asked.</li>
+      <li>Turning a knob on the S-1 updates the matching control here. A value shown as <b>?</b> hasn't been set or received yet, because the S-1 can't report its settings when asked. <b>Init sound</b> or loading a patch fills them in.</li>
       <li><b>Save to library</b>, below the controls, saves the current pattern and sound together as a patch in your library folder. Values shown as <b>?</b> keep the value from the patch you loaded, or otherwise the blank patch's.</li>
       <li>The drawn wave's shape, and settings with no MIDI control, can only be changed on the S-1.</li>
     </ul>

@@ -20,7 +20,8 @@ never receives your patterns or patches.
   Changing the key can move your patterns with it, keeping each note's place in the scale.
 - **Draw notes and chords:** drag to draw any length, or draw power chords, triads and
   7ths built from the key.
-- **Pattern ideas:** generate basslines, melodies, arpeggios and chords in the key.
+- **Pattern ideas:** generate basslines, melodies, arpeggios and chords in the key, each with
+  a starting sound that sets every control.
 - **Sound control:** every control change in Roland's MIDI chart, 54 in all, grouped into
   tabs. Knobs moved on the S-1 update the page.
 - **Saved sounds:** store and recall named sets of values in the browser.
@@ -62,7 +63,7 @@ Then open http://localhost:8773 in Chrome and allow MIDI access.
   live playback. They're kept in the file and work once a patch is on the S-1.
 
 - The S-1 can't report its current settings over MIDI. A value shows as ? until you set it
-  here or move its knob.
+  here, move its knob, or use Init sound.
 - Patterns play from this page, so it must stay open.
 - Save to S-1 uses the S-1's restore feature in a way Roland doesn't document, so keep a
   copy of its BACKUP folder. Saves hold 64 steps, 4 notes per step and values on 1/16 steps,

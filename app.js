@@ -2931,6 +2931,21 @@ function renderVary(showingOriginal) {
   $("vary-compare").setAttribute("aria-pressed", String(showingOriginal));
 }
 
+// Sets every control for the chosen idea. The sound before it stays a click away.
+function initSound() {
+  if (state.preview) stop();
+  const kind = $("generator").value;
+  state.varyOriginal = { ...state.values };
+  state.varyLatest = null;
+  state.delay.sync = 0;
+  applySound(S1Params.startingSound(kind));
+  state.varyLatest = { ...state.values };
+  renderVary(false);
+  saveSoon();
+  const sent = state.output ? "Hear original brings back the sound you had." : "No MIDI output, so it wasn't sent to the S-1.";
+  setStatus(`${Music.GENERATORS[kind]} starting sound. Every control is set. ${sent}`, !state.output);
+}
+
 function varySound(amount) {
   const { changes, unknown } = S1Params.vary(state.values, amount);
   if (!Object.keys(changes).length) {
@@ -3151,6 +3166,8 @@ function bindControls() {
   $("octave-down").addEventListener("click", () => shiftOctave(-1));
   $("octave-up").addEventListener("click", () => shiftOctave(1));
   $("generate").addEventListener("click", generatePattern);
+  $("generator").addEventListener("change", initSound);
+  $("init-sound").addEventListener("click", initSound);
   $("undo").addEventListener("click", undo);
   $("duplicate").addEventListener("click", duplicatePattern);
   $("clear").addEventListener("click", () => {

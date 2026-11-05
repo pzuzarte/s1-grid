@@ -100,6 +100,36 @@ test("a damaged or unrelated backup is refused", () => {
   assert.throws(() => Backup.unpack(damaged(() => {}), { ...validOptions, validatePatch: () => ["bad"] }), /damaged patch/);
 });
 
+test("every idea has a starting sound that sets every control to a valid value", () => {
+  assert.deepEqual(Object.keys(S1Params.STARTING_SOUNDS).sort(), Object.keys(Music.GENERATORS).sort());
+  for (const kind of Object.keys(Music.GENERATORS)) {
+    const sound = S1Params.startingSound(kind);
+    assert.deepEqual(Object.keys(sound).map(Number).sort((a, b) => a - b),
+      S1Params.ALL.map((param) => param.cc).sort((a, b) => a - b), kind);
+    for (const param of S1Params.ALL) {
+      const value = sound[param.cc];
+      assert.ok(Number.isInteger(value), `${kind} ${param.name}`);
+      if (param.type === "select") assert.ok(value >= 0 && value < param.options.length, `${kind} ${param.name}`);
+      else if (param.type === "toggle") assert.ok(value === 0 || value === 127, `${kind} ${param.name}`);
+      else if (param.type === "bipolar") assert.ok(Math.abs(value - 64) <= param.span, `${kind} ${param.name}`);
+      else assert.ok(value >= 0 && value <= 127, `${kind} ${param.name}`);
+    }
+  }
+});
+
+test("starting sounds suit their idea", () => {
+  const bass = S1Params.startingSound("bassline");
+  const chords = S1Params.startingSound("chords");
+  assert.equal(S1Params.ALL.find((p) => p.cc === 14).options[bass[14]], "16'");
+  assert.ok(bass[21] > 0);
+  assert.equal(S1Params.ALL.find((p) => p.cc === 80).options[chords[80]], "Poly");
+  assert.equal(S1Params.ALL.find((p) => p.cc === 80).options[bass[80]], "Mono");
+  for (const kind of Object.keys(Music.GENERATORS)) {
+    assert.equal(S1Params.startingSound(kind)[64], 0, "Hold is off");
+    assert.equal(S1Params.startingSound(kind)[77], 64, "No transpose");
+  }
+});
+
 test("delay time in ms follows the S-1's display", () => {
   assert.equal(S1Params.delayMs(0), 1);
   assert.equal(S1Params.delayMs(127), 740);

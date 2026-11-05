@@ -129,6 +129,56 @@ const S1Params = (() => {
     return String(value);
   }
 
+  /* Starting sounds for each kind of pattern idea. Every control has a value, so nothing
+     depends on what the S-1 happened to be set to. Switches use their position in the
+     option lists above. */
+  const NEUTRAL = {
+    14: 3, // Range: 8', so notes play at the pitch shown.
+    20: 127, 19: 0, 21: 0, 22: 2, 23: 0, 78: 1, 15: 64, 16: 1, 13: 0, 76: 64, 18: 32,
+    74: 70, 71: 20, 24: 40, 25: 0, 26: 64, 27: 0,
+    73: 0, 75: 50, 30: 70, 72: 25, 28: 1, 29: 2,
+    3: 50, 12: 2, 79: 0, 106: 0, 105: 0, 17: 30,
+    80: 0, 81: 0, 85: 64, 82: 0, 86: 64, 83: 0, 87: 64, 31: 0, 5: 20, 65: 0, 77: 64,
+    92: 0, 90: 40, 91: 0, 89: 40, 93: 0,
+    107: 0, 102: 0, 103: 0, 104: 0,
+    1: 0, 11: 127, 10: 64, 64: 0,
+  };
+
+  const ARPEGGIO = {
+    20: 95, 19: 95, 15: 40,
+    74: 58, 71: 45, 24: 68,
+    75: 28, 30: 12, 72: 22,
+    92: 45, 90: 40, 91: 20, 89: 35,
+  };
+
+  const STARTING_SOUNDS = {
+    // Round and punchy: an octave down, with a sub and a short filter envelope.
+    bassline: {
+      14: 2, 20: 105, 19: 35, 21: 100,
+      74: 42, 71: 28, 24: 62, 26: 40,
+      75: 38, 30: 40, 72: 12,
+    },
+    // Singing and in front, with some space around it.
+    melody: {
+      20: 127, 19: 30, 21: 20,
+      74: 70, 71: 30, 24: 40,
+      73: 2, 75: 50, 30: 70, 72: 30,
+      92: 40, 90: 53, 91: 30, 89: 50,
+    },
+    // Short and plucky, so fast notes stay separate.
+    arpUp: ARPEGGIO,
+    arpUpDown: ARPEGGIO,
+    // Soft and wide, with all the notes sounding together.
+    chords: {
+      80: 2, 20: 127,
+      74: 62, 71: 15, 24: 24,
+      73: 16, 75: 60, 30: 90, 72: 50,
+      92: 15, 90: 60, 91: 50, 89: 70, 93: 2,
+    },
+  };
+
+  const startingSound = (kind) => ({ ...NEUTRAL, ...STARTING_SOUNDS[kind] });
+
   // The S-1's delay time in ms with sync off, from S-1 Utility's readings of its display.
   const DELAY_RAW = [0, 11, 26, 55, 106, 179, 245, 255];
   const DELAY_MS = [1, 14, 44, 103, 273, 517, 737, 740];
@@ -160,7 +210,7 @@ const S1Params = (() => {
     return { changes, unknown };
   }
 
-  return { ALL, BY_CC, SECTIONS, delayMs, display, vary };
+  return { ALL, BY_CC, SECTIONS, STARTING_SOUNDS, delayMs, display, startingSound, vary };
 })();
 
 if (typeof module !== "undefined") module.exports = S1Params;
