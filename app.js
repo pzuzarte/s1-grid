@@ -1532,6 +1532,31 @@ function fillLaneOptions() {
     .filter((param) => param.type === "range" || param.type === "bipolar")
     .map((param) => new Option(`${lanes[param.cc]?.length ? "* " : ""}${param.name}`, String(param.cc))));
   select.value = String(state.laneCc);
+  // Keeps the choice when redrawing, and otherwise suggests the next pattern.
+  const target = $("lane-copy-target");
+  const chosen = Number(target.value);
+  const others = state.slots.map((_, index) => index).filter((index) => index !== state.current);
+  target.replaceChildren(...others.map((index) => new Option(`Pattern ${index + 1}`, String(index))));
+  target.value = String(target.value !== "" && others.includes(chosen) ? chosen : (state.current + 1) % SLOTS);
+}
+
+// Copies every knob's movements, replacing whatever the other pattern has.
+function copyLanesToPattern() {
+  const lanes = lanesFor() || {};
+  if (!Object.values(lanes).some((points) => points.length)) {
+    setStatus("This pattern has no knob movements to copy.", true);
+    return;
+  }
+  const index = Number($("lane-copy-target").value);
+  const target = state.slots[index];
+  const { lanes: copied, cut } = Music.copyLanes(lanes, lengthPulses(target));
+  remember();
+  target.lanes = copied;
+  renderChrome();
+  saveSoon();
+  const count = Object.keys(copied).length;
+  const past = cut ? " Pattern " + (index + 1) + " is shorter, so movements past its end were left out." : "";
+  setStatus(`Copied ${count} ${count === 1 ? "knob's" : "knobs'"} movements to pattern ${index + 1}, replacing any it had. Undo takes it back.${past}`);
 }
 
 function setLaneVisible(visible) {
@@ -1666,6 +1691,7 @@ function bindLane() {
     saveSoon();
   });
   $("lane-toggle").addEventListener("click", () => setLaneVisible(!state.showLane));
+  $("lane-copy").addEventListener("click", copyLanesToPattern);
 }
 
 function renderPeers(names) {

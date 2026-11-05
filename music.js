@@ -242,6 +242,19 @@ const Music = (() => {
       .sort((a, b) => a.time - b.time || a.note - b.note);
   }
 
+  // A separate copy of knob movements for a pattern of a given length, leaving out any
+  // past its end, and any knob left with nothing.
+  function copyLanes(lanes, patternLength) {
+    const copy = {};
+    let cut = 0;
+    for (const [cc, points] of Object.entries(lanes)) {
+      const kept = points.filter((point) => point.time < patternLength).map((point) => ({ ...point }));
+      cut += points.length - kept.length;
+      if (kept.length) copy[cc] = kept;
+    }
+    return { lanes: copy, cut };
+  }
+
   // "1 1 2 3" to pattern indexes, or null if something isn't a pattern number.
   function parseChain(text, patterns = 16) {
     const parts = String(text ?? "").trim().split(/[\s,]+/).filter(Boolean);
@@ -410,6 +423,7 @@ const Music = (() => {
     SCALES,
     SUB_STEPS,
     chordNotes,
+    copyLanes,
     detectKey,
     generate,
     inKey,

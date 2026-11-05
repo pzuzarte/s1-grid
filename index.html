@@ -147,6 +147,10 @@
           <select id="lane-cc"></select>
         </label>
         <button id="lane-clear" type="button" title="Remove this knob's movements from the pattern">Clear knob</button>
+        <label title="Copies every knob's movements in this pattern, replacing any the other pattern has">Copy all to
+          <select id="lane-copy-target" aria-label="Pattern to copy knob movements to"></select>
+        </label>
+        <button id="lane-copy" type="button" title="Copies every knob's movements in this pattern, replacing any the other pattern has">Copy</button>
         <span class="lane-help">Drag to draw, Alt-drag to erase. * has movements. The white line is where the knob rests.</span>
       </div>
       <canvas id="lane-canvas" class="lane-canvas" aria-label="Drawing area for knob movements"></canvas>
@@ -304,6 +308,7 @@
     <ul>
       <li><b>Knobs</b> opens a lane under the grid. Choose a knob and drag to draw how it moves through the pattern, or Alt-drag to erase. The S-1 stores 8 points per step and up to 8 knobs per pattern.</li>
       <li>They play from this page and save to the S-1 as motions, as well as to the library. <b>Shift</b> moves them along with the notes.</li>
+      <li><b>Copy all to</b> copies every knob's movements in this pattern, including a loaded patch's, to another pattern, replacing any it has. The notes aren't copied, and Undo takes it back. Movements past the end of a shorter pattern are left out.</li>
       <li>A loaded patch's motions show here too. Drawing replaces its recorded motions with what's shown when you save, and keeps any pitch bend movements.</li>
     </ul>
 

@@ -40,6 +40,17 @@ test("rotating wraps around the pattern and keeps notes inside it", () => {
   assert.equal(Music.rotateNotes([note({ time: 3360, length: 480 })], 240, 3840)[0].length, 240);
 });
 
+test("copying knob movements makes a separate copy that fits the pattern", () => {
+  const lanes = { 24: [{ time: 0, value: 10 }, { time: 3840, value: 20 }], 26: [{ time: 3870, value: 5 }] };
+  const short = Music.copyLanes(lanes, 3840);
+  assert.deepEqual(short.lanes, { 24: [{ time: 0, value: 10 }] });
+  assert.equal(short.cut, 2);
+  const full = Music.copyLanes(lanes, 7680);
+  assert.equal(full.cut, 0);
+  full.lanes[24][0].value = 99;
+  assert.equal(lanes[24][0].value, 10);
+});
+
 test("chains accept pattern numbers and refuse anything else", () => {
   assert.deepEqual(Music.parseChain("1 1 2, 16"), [0, 0, 1, 15]);
   assert.deepEqual(Music.parseChain("  "), []);
