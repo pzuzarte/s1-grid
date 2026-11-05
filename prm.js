@@ -89,11 +89,6 @@ const Prm = (() => {
     107: ["OSC_DRAW_SW", direct],
   };
 
-  // The delay's note values, by the number stored as DELAY_TEMPO, from the S-1 Utility
-  // project's hardware testing. TEMPO_SYNC chooses between these and DELAY_TIME.
-  const DELAY_NOTES = ["1/128", "1/64T", "1/128D", "1/64", "1/32T", "1/64D", "1/32", "1/16T",
-    "1/32D", "1/16", "1/8T", "1/16D", "1/8", "1/4T", "1/8D", "1/4"];
-
   // Bank 1-4 and pattern 1-16 from a slot of 0-63.
   function fileName(slot) {
     const bank = Math.floor(slot / 16) + 1;
@@ -261,7 +256,6 @@ const Prm = (() => {
       if (setting && value !== undefined && value !== null) changes.set(setting[0], setting[1](value));
     }
     if (delay.sync === 0 || delay.sync === 1) changes.set("TEMPO_SYNC", delay.sync);
-    if (Number.isInteger(delay.note) && DELAY_NOTES[delay.note]) changes.set("DELAY_TEMPO", delay.note);
     const drawn = motions ? buildMotions(motions, stepCount, warnings) : null;
     if (!keepMotions || drawn) {
       for (let slot = 1; slot <= MOTION_LANES; slot += 1) {
@@ -340,14 +334,10 @@ const Prm = (() => {
     return notes;
   }
 
-  // The delay settings with no MIDI control, which only exist in the file.
+  // Whether the delay follows the tempo, which has no MIDI control and only exists in the file.
   function readDelay(text) {
-    const delay = {};
     const sync = readSetting(text, "TEMPO_SYNC");
-    const note = readSetting(text, "DELAY_TEMPO");
-    if (sync === 0 || sync === 1) delay.sync = sync;
-    if (note !== null && DELAY_NOTES[note]) delay.note = note;
-    return delay;
+    return sync === 0 || sync === 1 ? { sync } : {};
   }
 
   // Sound settings as MIDI values, for sending to the S-1 and showing on the page.
@@ -408,7 +398,6 @@ const Prm = (() => {
   }
 
   return {
-    DELAY_NOTES,
     MAX_STEPS,
     SETTINGS,
     describe,

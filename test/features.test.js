@@ -97,10 +97,10 @@ test("delay time in ms follows the S-1's display", () => {
   for (let cc = 1; cc <= 127; cc += 1) assert.ok(S1Params.delayMs(cc) >= S1Params.delayMs(cc - 1));
 });
 
-test("a backup keeps the delay's sync and note value, and ignores bad ones", () => {
-  const file = JSON.parse(JSON.stringify(Backup.pack({ ...fullState(), delay: { sync: 0, note: 14 } })));
-  assert.deepEqual(Backup.unpack(file, validOptions).delay, { sync: 0, note: 14 });
-  file.delay = { sync: 7, note: 99 };
+test("a backup keeps the delay's sync, and ignores anything else", () => {
+  const file = JSON.parse(JSON.stringify(Backup.pack({ ...fullState(), delay: { sync: 0 } })));
+  assert.deepEqual(Backup.unpack(file, validOptions).delay, { sync: 0 });
+  file.delay = { sync: 7, note: 14 };
   assert.deepEqual(Backup.unpack(file, validOptions).delay, {});
   delete file.delay;
   assert.deepEqual(Backup.unpack(file, validOptions).delay, {});

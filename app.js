@@ -1153,13 +1153,8 @@ function delayRows() {
     label.append(text, select);
     return label;
   };
-  const rows = [row("Delay sync", "Whether the delay time follows the tempo as a note value, or is set in ms.",
+  return [row("Delay sync", "Whether the delay time follows the tempo as a note value, or is set in ms.",
     ["Off (ms)", "On (note value)"], state.delay.sync, (value) => { state.delay.sync = value; })];
-  if (state.delay.sync !== 0) {
-    rows.push(row("Delay note", "The delay time as a note value, when Delay sync is on. T is a triplet, and D is dotted.",
-      Prm.DELAY_NOTES, state.delay.note, (value) => { state.delay.note = value; }));
-  }
-  return rows;
 }
 
 function updateParamControl(cc) {

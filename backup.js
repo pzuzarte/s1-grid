@@ -76,7 +76,6 @@ const Backup = (() => {
     }
     const delay = {};
     if (data.delay?.sync === 0 || data.delay?.sync === 1) delay.sync = data.delay.sync;
-    if (Number.isInteger(data.delay?.note) && finite(data.delay.note, 0, 15)) delay.note = data.delay.note;
     return {
       delay,
       root: data.root,

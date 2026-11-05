@@ -59,27 +59,27 @@ test("drawn knob movements warn when they don't fit on the S-1", () => {
   assert.ok(late.warnings.some((text) => text.includes("past step 16")));
 });
 
-test("delay sync and note value save to the file and read back", () => {
+test("delay sync saves to the file and reads back, leaving the note value alone", () => {
   const lines = makeTemplate().split("\n");
   const padding = lines.findIndex((line) => line.startsWith("PADDING"));
   lines[padding] = "TEMPO_SYNC\t= 1";
   lines[padding + 1] = "DELAY_TEMPO\t= 15";
   const start = lines.join("\n");
   assert.deepEqual(Prm.validate(start), []);
-  assert.deepEqual(Prm.readDelay(start), { sync: 1, note: 15 });
+  assert.deepEqual(Prm.readDelay(start), { sync: 1 });
 
   const options = { notes: [], bars: 1, bpm: 120 };
   const kept = Prm.render(start, options).text;
-  assert.deepEqual(Prm.readDelay(kept), { sync: 1, note: 15 });
-  const changed = Prm.render(start, { ...options, delay: { sync: 0, note: 12 } }).text;
-  assert.deepEqual(Prm.readDelay(changed), { sync: 0, note: 12 });
-  assert.equal(Prm.DELAY_NOTES[12], "1/8");
-  const bad = Prm.render(start, { ...options, delay: { sync: 5, note: 16 } }).text;
-  assert.deepEqual(Prm.readDelay(bad), { sync: 1, note: 15 });
+  assert.deepEqual(Prm.readDelay(kept), { sync: 1 });
+  const changed = Prm.render(start, { ...options, delay: { sync: 0 } }).text;
+  assert.deepEqual(Prm.readDelay(changed), { sync: 0 });
+  assert.equal(Prm.readSetting(changed, "DELAY_TEMPO"), 15);
+  const bad = Prm.render(start, { ...options, delay: { sync: 5 } }).text;
+  assert.deepEqual(Prm.readDelay(bad), { sync: 1 });
 });
 
 test("a file without these delay settings stays valid when they're given", () => {
-  const { text } = Prm.render(makeTemplate(), { notes: [], bars: 1, bpm: 120, delay: { sync: 1, note: 3 } });
+  const { text } = Prm.render(makeTemplate(), { notes: [], bars: 1, bpm: 120, delay: { sync: 1 } });
   assert.deepEqual(Prm.validate(text), []);
   assert.deepEqual(Prm.readDelay(text), {});
 });
