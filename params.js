@@ -129,6 +129,17 @@ const S1Params = (() => {
     return String(value);
   }
 
+  // The S-1's delay time in ms with sync off, from S-1 Utility's readings of its display.
+  const DELAY_RAW = [0, 11, 26, 55, 106, 179, 245, 255];
+  const DELAY_MS = [1, 14, 44, 103, 273, 517, 737, 740];
+
+  function delayMs(cc) {
+    const raw = (Math.max(0, Math.min(127, cc)) * 255) / 127;
+    const upper = Math.max(1, DELAY_RAW.findIndex((value) => raw <= value));
+    const share = (raw - DELAY_RAW[upper - 1]) / (DELAY_RAW[upper] - DELAY_RAW[upper - 1]);
+    return Math.round(DELAY_MS[upper - 1] + share * (DELAY_MS[upper] - DELAY_MS[upper - 1]));
+  }
+
   // Left out of Vary: tuning and bend ranges put a sound out of tune, and pan, mod wheel
   // and expression are for performing with rather than part of the sound.
   const NOT_VARIED = new Set([1, 10, 11, 18, 27, 76, 77, 85, 86, 87]);
@@ -149,7 +160,7 @@ const S1Params = (() => {
     return { changes, unknown };
   }
 
-  return { ALL, BY_CC, SECTIONS, display, vary };
+  return { ALL, BY_CC, SECTIONS, delayMs, display, vary };
 })();
 
 if (typeof module !== "undefined") module.exports = S1Params;

@@ -39,6 +39,7 @@ const state = {
   tab: "osc",
   sounds: [],
   values: {},
+  delay: {},
   sources: Array.from({ length: SLOTS }, () => null),
   page: 0,
   pageBars: 1,
@@ -95,7 +96,7 @@ function saveSoon() {
     const saved = {};
     for (const key of ["root", "scale", "moveNotes", "slots", "current", "bpm", "channel", "chord",
       "newLength", "lowOctave", "span", "showAll", "baseResolution", "triplets", "tab", "sounds", "sources",
-      "chain", "chainOn", "showLane", "laneCc"]) {
+      "chain", "chainOn", "showLane", "laneCc", "delay"]) {
       saved[key] = state[key];
     }
     // Motions are read back from the patch's text, so they aren't stored twice.
@@ -1081,6 +1082,7 @@ function renderParams() {
   $("params").replaceChildren(...section.params.map((param) => {
     const row = document.createElement("label");
     row.className = "param";
+    row.dataset.cc = String(param.cc);
     row.title = `${param.help} MIDI controller ${param.cc}.`;
     const name = document.createElement("span");
     name.textContent = param.name;
@@ -1120,7 +1122,44 @@ function renderParams() {
     }
     return row;
   }));
+  if (section.id === "fx") {
+    const afterTime = [...$("params").children].findIndex((row) => row.dataset.cc === "90") + 1;
+    $("params").children[afterTime].before(...delayRows());
+  }
   for (const cc of paramControls.keys()) updateParamControl(cc);
+}
+
+// Settings with no MIDI control, so they reach the S-1 when a pattern is saved to it.
+function delayRows() {
+  const row = (name, help, options, value, apply) => {
+    const label = document.createElement("label");
+    label.className = "param";
+    label.title = `${help} Takes effect once the pattern is saved to the S-1.`;
+    const text = document.createElement("span");
+    text.textContent = name;
+    const select = document.createElement("select");
+    select.setAttribute("aria-label", name);
+    select.classList.toggle("unknown", value === undefined);
+    if (value === undefined) select.append(new Option("?", ""));
+    options.forEach((option, index) => select.append(new Option(option, String(index))));
+    select.value = value === undefined ? "" : String(value);
+    select.addEventListener("change", () => {
+      if (select.value === "") return;
+      apply(Number(select.value));
+      renderParams();
+      saveSoon();
+      setStatus(`${name} takes effect once this pattern is saved to the S-1.`);
+    });
+    label.append(text, select);
+    return label;
+  };
+  const rows = [row("Delay sync", "Whether the delay time follows the tempo as a note value, or is set in ms.",
+    ["Off (ms)", "On (note value)"], state.delay.sync, (value) => { state.delay.sync = value; })];
+  if (state.delay.sync !== 0) {
+    rows.push(row("Delay note", "The delay time as a note value, when Delay sync is on. T is a triplet, and D is dotted.",
+      Prm.DELAY_NOTES, state.delay.note, (value) => { state.delay.note = value; }));
+  }
+  return rows;
 }
 
 function updateParamControl(cc) {
@@ -1140,7 +1179,7 @@ function updateParamControl(cc) {
   }
   if (param.type === "toggle") input.checked = known && value >= 64;
   else input.value = known ? value : 64;
-  output.textContent = S1Params.display(param, value);
+  output.textContent = cc === 90 && known && state.delay.sync === 0 ? `${S1Params.delayMs(value)} ms` : S1Params.display(param, value);
   output.classList.toggle("unknown", !known);
   // The S-1 can't report its settings, so an untouched slider's position means nothing.
   input.classList.toggle("unknown", !known);
@@ -2148,7 +2187,7 @@ function buildAssignment(slotIndex, source) {
     ? existing.text
     : new TextDecoder("ascii").decode(saveState.files.get(Prm.fileName(slotIndex)));
   const result = Prm.render(template, {
-    notes: notes(), bars: slot().bars, bpm: currentBpm(), values: state.values, keepMotions: Boolean(existing), motions: drawnMotions(),
+    notes: notes(), bars: slot().bars, bpm: currentBpm(), values: state.values, keepMotions: Boolean(existing), motions: drawnMotions(), delay: state.delay,
   });
   return { ...result, label: gridSourceLabel() };
 }
@@ -2518,7 +2557,7 @@ async function addPatchToLibrary() {
     if (await fileExists(library.folder, file)
         && !window.confirm(`Replace "${name}" in the library?`)) return;
     const { text, warnings } = Prm.render(template, {
-      notes: notes(), bars: slot().bars, bpm: currentBpm(), values: state.values, keepMotions: Boolean(source), motions: drawnMotions(),
+      notes: notes(), bars: slot().bars, bpm: currentBpm(), values: state.values, keepMotions: Boolean(source), motions: drawnMotions(), delay: state.delay,
     });
     await writeBytes(library.folder, file, new TextEncoder().encode(text));
     state.sources[state.current] = { name, text };
@@ -2913,6 +2952,7 @@ function loadPatch(item, { play: startPlaying = false } = {}) {
     state.lowOctave = Math.max(1, Math.min(6, Math.floor(lowest / 12) - 1));
   }
   state.page = 0;
+  state.delay = Prm.readDelay(item.text);
   const finished = applySound(Prm.readValues(item.text));
   renderAll();
   renderLibrary();

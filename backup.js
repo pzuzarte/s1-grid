@@ -17,6 +17,7 @@ const Backup = (() => {
       chain: state.chain,
       chainOn: state.chainOn,
       values: state.values,
+      delay: state.delay,
       slots: state.slots,
       sources: state.sources.map((source) => source && { name: source.name, text: source.text }),
     };
@@ -73,7 +74,11 @@ const Backup = (() => {
     for (const [cc, value] of Object.entries(data.values || {})) {
       if (finite(Number(cc), 0, 127) && finite(value, 0, 127)) values[cc] = value;
     }
+    const delay = {};
+    if (data.delay?.sync === 0 || data.delay?.sync === 1) delay.sync = data.delay.sync;
+    if (Number.isInteger(data.delay?.note) && finite(data.delay.note, 0, 15)) delay.note = data.delay.note;
     return {
+      delay,
       root: data.root,
       scale: data.scale,
       bpm: data.bpm,

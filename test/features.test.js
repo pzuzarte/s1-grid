@@ -89,6 +89,23 @@ test("a damaged or unrelated backup is refused", () => {
   assert.throws(() => Backup.unpack(damaged(() => {}), { ...validOptions, validatePatch: () => ["bad"] }), /damaged patch/);
 });
 
+test("delay time in ms follows the S-1's display", () => {
+  assert.equal(S1Params.delayMs(0), 1);
+  assert.equal(S1Params.delayMs(127), 740);
+  // 53 is 106 in the file, one of the measured points.
+  assert.ok(Math.abs(S1Params.delayMs(53) - 273) <= 2);
+  for (let cc = 1; cc <= 127; cc += 1) assert.ok(S1Params.delayMs(cc) >= S1Params.delayMs(cc - 1));
+});
+
+test("a backup keeps the delay's sync and note value, and ignores bad ones", () => {
+  const file = JSON.parse(JSON.stringify(Backup.pack({ ...fullState(), delay: { sync: 0, note: 14 } })));
+  assert.deepEqual(Backup.unpack(file, validOptions).delay, { sync: 0, note: 14 });
+  file.delay = { sync: 7, note: 99 };
+  assert.deepEqual(Backup.unpack(file, validOptions).delay, {});
+  delete file.delay;
+  assert.deepEqual(Backup.unpack(file, validOptions).delay, {});
+});
+
 test("vary only nudges known levels that are part of the sound", () => {
   const { changes, unknown } = S1Params.vary({ 74: 100, 76: 64, 14: 3 }, 0.1, () => 1);
   assert.equal(changes[74], 113);
