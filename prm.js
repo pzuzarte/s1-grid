@@ -89,6 +89,13 @@ const Prm = (() => {
     107: ["OSC_DRAW_SW", direct],
   };
 
+  // The delay's note values, by the number stored as DELAY_TEMPO, from the S-1 Utility
+  // project's hardware testing. With sync on, the Delay time knob sends this number on
+  // CC 90 rather than 0-127, so CC 90 means a note value here and not DELAY_TIME.
+  const DELAY_NOTES = ["1/128", "1/64T", "1/128D", "1/64", "1/32T", "1/64D", "1/32", "1/16T",
+    "1/32D", "1/16", "1/8T", "1/16D", "1/8", "1/4T", "1/8D", "1/4"];
+  const DELAY_CC = 90;
+
   // Bank 1-4 and pattern 1-16 from a slot of 0-63.
   function fileName(slot) {
     const bank = Math.floor(slot / 16) + 1;
@@ -251,9 +258,15 @@ const Prm = (() => {
     const stepLines = buildSteps(notes, stepCount, warnings);
 
     const changes = new Map([["LENG", stepCount], ["TEMPO", Math.round(bpm * 100)]]);
+    const synced = (delay.sync ?? readSetting(template, "TEMPO_SYNC")) === 1;
     for (const [cc, value] of Object.entries(values)) {
       const setting = SETTINGS[cc];
-      if (setting && value !== undefined && value !== null) changes.set(setting[0], setting[1](value));
+      if (!setting || value === undefined || value === null) continue;
+      if (synced && Number(cc) === DELAY_CC) {
+        if (DELAY_NOTES[value]) changes.set("DELAY_TEMPO", value);
+      } else {
+        changes.set(setting[0], setting[1](value));
+      }
     }
     if (delay.sync === 0 || delay.sync === 1) changes.set("TEMPO_SYNC", delay.sync);
     const drawn = motions ? buildMotions(motions, stepCount, warnings) : null;
@@ -347,6 +360,8 @@ const Prm = (() => {
       const value = readSetting(text, key);
       if (value !== null) values[cc] = convert.toCc(value);
     }
+    const note = readSetting(text, "DELAY_TEMPO");
+    if (readSetting(text, "TEMPO_SYNC") === 1 && DELAY_NOTES[note]) values[DELAY_CC] = note;
     return values;
   }
 
@@ -398,6 +413,7 @@ const Prm = (() => {
   }
 
   return {
+    DELAY_NOTES,
     MAX_STEPS,
     SETTINGS,
     describe,

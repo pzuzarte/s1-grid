@@ -341,7 +341,7 @@
       <li><b>To send several at once:</b> tick patches in the list, then click <b>Send to S-1</b>. Each patch gets a row with its own slot. They start on the next empty slots. To change one, select its row and click a slot, or use its list. The same patch can go to several slots with <b>Add to list</b>.</li>
       <li><b>To S-1</b> on a single patch opens Save to S-1 with that patch selected.</li>
       <li>When saving, hovering over a slot shows which library patch it holds, if its contents exactly match one.</li>
-      <li><b>Delay sync</b> on the FX tab has no MIDI control, so it takes effect once a pattern is saved to the S-1. Loading a patch fills it in. With sync off, <b>Delay time</b> shows ms, and its value is what's saved. With sync on, the S-1 uses a note value that can only be set on the S-1 itself. Moving Delay time still sends its MIDI control, but shows the raw 0-127, and a saved pattern keeps the note value it already has.</li>
+      <li><b>Delay sync</b> on the FX tab has no MIDI control, so it takes effect once a pattern is saved to the S-1. Loading a patch fills it in. With sync off, <b>Delay time</b> shows ms. With sync on, it shows a note value, one of 16 from 1/128 to 1/4, as the S-1's knob sends in that mode. Either one is what's saved. If the slider doesn't match the knob, set Delay sync to match the S-1.</li>
       <li>Some settings have no MIDI control, like delay feedback or a drawn wave, so they won't be heard during live playback. They're kept in the file and work once a patch is on the S-1. Motions and sub-steps play live here too, as a close match.</li>
     </ul>
 

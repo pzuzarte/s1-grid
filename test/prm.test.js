@@ -78,6 +78,29 @@ test("delay sync saves to the file and reads back, leaving the note value alone"
   assert.deepEqual(Prm.readDelay(bad), { sync: 1 });
 });
 
+test("Delay time is a note value with sync on and a time with it off", () => {
+  const lines = makeTemplate().split("\n");
+  const padding = lines.findIndex((line) => line.startsWith("PADDING"));
+  lines[padding] = "TEMPO_SYNC\t= 1";
+  lines[padding + 1] = "DELAY_TEMPO\t= 14";
+  const start = lines.join("\n").replace(/^DELAY_TIME\t= \d+$/m, "DELAY_TIME\t= 174");
+  const save = (value, delay) => Prm.render(start, { notes: [], bars: 1, bpm: 120, values: { 90: value }, delay }).text;
+  const read = (text) => [Prm.readSetting(text, "TEMPO_SYNC"), Prm.readSetting(text, "DELAY_TEMPO"), Prm.readSetting(text, "DELAY_TIME")];
+
+  assert.equal(Prm.DELAY_NOTES.length, 16);
+  assert.equal(Prm.readValues(start)[90], 14);
+  assert.deepEqual(read(save(9, { sync: 1 })), [1, 9, 174]);
+  assert.equal(Prm.readValues(save(9, { sync: 1 }))[90], 9);
+  // With sync unknown, the file's own setting decides.
+  assert.deepEqual(read(save(9, {})), [1, 9, 174]);
+  // A value too high to be a note value leaves the saved one alone.
+  assert.deepEqual(read(save(100, { sync: 1 })), [1, 14, 174]);
+
+  const free = save(127, { sync: 0 });
+  assert.deepEqual(read(free), [0, 14, 255]);
+  assert.equal(Prm.readValues(free)[90], 127);
+});
+
 test("a file without these delay settings stays valid when they're given", () => {
   const { text } = Prm.render(makeTemplate(), { notes: [], bars: 1, bpm: 120, delay: { sync: 1 } });
   assert.deepEqual(Prm.validate(text), []);

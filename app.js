@@ -1154,7 +1154,25 @@ function delayRows() {
     return label;
   };
   return [row("Delay sync", "Whether the delay time follows the tempo as a note value, or is set in ms.",
-    ["Off (ms)", "On (note value)"], state.delay.sync, (value) => { state.delay.sync = value; })];
+    ["Off (ms)", "On (note value)"], state.delay.sync, setDelaySync)];
+}
+
+const DELAY_CC = 90;
+const DELAY_LAST_NOTE = Prm.DELAY_NOTES.length - 1;
+const DELAY_DEFAULT_NOTE = 12; // 1/8
+const DELAY_DEFAULT_TIME = 64;
+
+// Delay time is a note value with sync on and a time with it off, so a value doesn't carry over.
+function setDelaySync(sync) {
+  const current = state.values[DELAY_CC];
+  if (sync === 1) state.values[DELAY_CC] = current <= DELAY_LAST_NOTE ? current : DELAY_DEFAULT_NOTE;
+  else if (state.delay.sync === 1) state.values[DELAY_CC] = DELAY_DEFAULT_TIME;
+  state.delay.sync = sync;
+}
+
+function delayText(value) {
+  if (state.delay.sync === 1) return Prm.DELAY_NOTES[Math.min(value, DELAY_LAST_NOTE)];
+  return state.delay.sync === 0 ? `${S1Params.delayMs(value)} ms` : String(value);
 }
 
 function updateParamControl(cc) {
@@ -1173,8 +1191,11 @@ function updateParamControl(cc) {
     return;
   }
   if (param.type === "toggle") input.checked = known && value >= 64;
-  else input.value = known ? value : 64;
-  output.textContent = cc === 90 && known && state.delay.sync === 0 ? `${S1Params.delayMs(value)} ms` : S1Params.display(param, value);
+  else {
+    if (cc === DELAY_CC) input.max = state.delay.sync === 1 ? DELAY_LAST_NOTE : 127;
+    input.value = known ? value : 64;
+  }
+  output.textContent = cc === DELAY_CC && known ? delayText(value) : S1Params.display(param, value);
   output.classList.toggle("unknown", !known);
   // The S-1 can't report its settings, so an untouched slider's position means nothing.
   input.classList.toggle("unknown", !known);
@@ -1281,8 +1302,12 @@ function handleMidiInput(event) {
   } else if (kind === 0x80 || kind === 0x90) {
     recordNoteOff(first, at);
   } else if (kind === 0xB0 && S1Params.BY_CC.has(first)) {
+    // Past the last note value, the S-1 can only be sending a time, so its sync is off.
+    const syncIsOff = first === DELAY_CC && second > DELAY_LAST_NOTE && state.delay.sync === 1;
+    if (syncIsOff) state.delay.sync = 0;
     state.values[first] = second;
-    updateParamControl(first);
+    if (syncIsOff) renderParams();
+    else updateParamControl(first);
   }
 }
 
@@ -2956,6 +2981,8 @@ function initSine() {
 
 function varySound(amount) {
   const { changes, unknown } = S1Params.vary(state.values, amount);
+  // Its range is much smaller as a note value, so a nudge would jump to another note.
+  if (state.delay.sync === 1) delete changes[DELAY_CC];
   if (!Object.keys(changes).length) {
     setStatus("Vary needs known values. Load a patch, or move the controls first.", true);
     return;
