@@ -43,7 +43,28 @@ h1 { margin: 0 6px 0 0; font-size: 16px; font-weight: 700; letter-spacing: 0.02e
   background: var(--panel);
   border-bottom: 1px solid var(--line);
 }
-.foot { border-top: 1px solid var(--line); border-bottom: 0; }
+.foot { flex-wrap: nowrap; border-top: 1px solid var(--line); border-bottom: 0; }
+.foot > * { flex: none; }
+.foot .spacer { display: none; }
+@media (max-width: 1100px) { .foot { flex-wrap: wrap; } }
+.tools { gap: 6px 10px; padding-top: 5px; padding-bottom: 5px; font-size: 12px; }
+.tools button { height: 28px; padding: 0 7px; font-size: 12px; }
+.tools input[type="number"] { width: 54px; height: 28px; }
+.tools input[type="text"] { width: 96px; height: 28px; }
+.lane { flex: none; padding: 4px 8px 6px 14px; border-top: 1px solid var(--line); }
+.lane-head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; font-size: 12px; }
+.lane-head button, .lane-head select { height: 26px; font-size: 12px; }
+.lane-help { overflow: hidden; color: var(--muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.lane-canvas { display: block; height: 70px; border-radius: 3px; cursor: crosshair; touch-action: none; }
+.vary-bar { display: flex; align-items: center; gap: 4px; }
+.vary-bar button { flex: 1; height: 26px; padding: 0 4px; font-size: 11px; }
+.library-favourites { font-size: 12px; }
+.step-number { cursor: pointer; }
+.step-number.selected { background: var(--accent); color: var(--accent-text); }
+.cell.selected { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.28); }
+.note-sub { position: absolute; top: 50%; left: 2px; overflow: hidden; color: var(--accent-text); font-size: 9px; line-height: 1; letter-spacing: -0.5px; white-space: nowrap; transform: translateY(-50%); pointer-events: none; }
+.grid.dense .note-sub { display: none; }
+.grid.dense .note-bar.sub { outline: 1px dashed #fff; outline-offset: -1px; }
 .spacer { flex: 1; }
 
 label { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
@@ -262,6 +283,7 @@ button.primary { min-width: 68px; background: var(--accent); border-color: var(-
 .save-warnings { color: var(--warn); }
 .save-warnings:empty { display: none; }
 
+.foot .status { flex: 1 1 0; min-width: 120px; display: -webkit-box; overflow: hidden; font-size: 12px; line-height: 15px; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .status { margin: 0; color: var(--muted); }
 .status.error { color: #ff8f88; }
 .hint { margin: 0; padding: 0 14px 6px; background: var(--panel); color: var(--muted); font-size: 12px; }

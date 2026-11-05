@@ -45,6 +45,23 @@ const state = {
   windowStart: 0,
   windowSpan: 0,
   undo: [],
+  chain: "",
+  chainOn: false,
+  chainPos: 0,
+  showLane: false,
+  laneCc: 74,
+  laneDraw: null,
+  selection: null,
+  selecting: null,
+  clipboard: null,
+  recording: false,
+  recStep: 0,
+  recLast: 0,
+  recOpen: new Map(),
+  recent: [],
+  preview: null,
+  varyOriginal: null,
+  varyLatest: null,
   editor: null,
   paint: null,
   lengthDrag: null,
@@ -66,6 +83,7 @@ const lowNote = () => (state.lowOctave + 1) * 12;
 
 function setStatus(message, isError = false) {
   $("status").textContent = message;
+  $("status").title = message;
   $("status").classList.toggle("error", isError);
 }
 
@@ -76,7 +94,8 @@ function saveSoon() {
   state.saveTimer = window.setTimeout(() => {
     const saved = {};
     for (const key of ["root", "scale", "moveNotes", "slots", "current", "bpm", "channel", "chord",
-      "newLength", "lowOctave", "span", "showAll", "baseResolution", "triplets", "tab", "sounds", "sources"]) {
+      "newLength", "lowOctave", "span", "showAll", "baseResolution", "triplets", "tab", "sounds", "sources",
+      "chain", "chainOn", "showLane", "laneCc"]) {
       saved[key] = state[key];
     }
     // Motions are read back from the patch's text, so they aren't stored twice.
@@ -241,6 +260,130 @@ function shiftOctave(octaves) {
   setStatus(`Moved pattern ${state.current + 1} ${octaves > 0 ? "up" : "down"} an octave.`);
 }
 
+function shiftInScale(steps) {
+  if (!notes().length) {
+    setStatus("This pattern has no notes to move.", true);
+    return;
+  }
+  const moved = Music.shiftInScale(notes(), steps, state.root, state.scale);
+  if (!moved) {
+    setStatus("Can't move further, as the notes would go past the MIDI range.", true);
+    return;
+  }
+  closeNoteEditor({ restoreFocus: false });
+  remember();
+  slot().notes = moved;
+  renderGrid();
+  renderChrome();
+  saveSoon();
+  setStatus(`Moved pattern ${state.current + 1} ${steps > 0 ? "up" : "down"} a step in the scale.`);
+}
+
+// Moves the whole pattern a step in time, wrapping around, along with its knob movements.
+function shiftInTime(direction) {
+  const lanes = lanesFor();
+  if (!notes().length && !(lanes && Object.keys(lanes).length)) {
+    setStatus("This pattern is empty.", true);
+    return;
+  }
+  closeNoteEditor({ restoreFocus: false });
+  remember();
+  const by = direction * state.resolution;
+  const length = lengthPulses();
+  slot().notes = Music.rotateNotes(notes(), by, length);
+  if (lanes && Object.keys(lanes).length) {
+    for (const [cc, points] of Object.entries(editableLanes())) {
+      slot().lanes[cc] = points.map((point) => ({
+        ...point,
+        time: (Math.round((((point.time + by) % length + length) % length) / MOTION_TICKS) * MOTION_TICKS) % length,
+      })).sort((a, b) => a.time - b.time);
+    }
+  }
+  renderGrid();
+  renderChrome();
+  saveSoon();
+  setStatus(`Moved pattern ${state.current + 1} ${direction > 0 ? "later" : "earlier"} by one step.`);
+}
+
+/* ---------- Selecting steps, copy and paste ---------- */
+
+function updateSelectionMarks() {
+  const range = state.selection;
+  document.querySelectorAll(".cell, .step-number[data-time]").forEach((node) => {
+    const time = Number(node.dataset.time);
+    node.classList.toggle("selected", Boolean(range) && time >= range.start && time < range.end);
+  });
+}
+
+function selectSteps(from, to) {
+  const start = Math.min(from, to);
+  state.selection = { start, end: Math.max(from, to) + state.resolution };
+  updateSelectionMarks();
+}
+
+function clearSelection() {
+  state.selection = null;
+  updateSelectionMarks();
+}
+
+function copySelection() {
+  const range = state.selection;
+  if (!range) {
+    setStatus("Click or drag along the step numbers above the grid to choose steps first.", true);
+    return;
+  }
+  const copied = notes().filter((n) => n.time >= range.start && n.time < range.end);
+  state.clipboard = { span: range.end - range.start, notes: copied.map((n) => ({ ...n, time: n.time - range.start })) };
+  $("paste").disabled = false;
+  setStatus(`Copied ${copied.length} ${copied.length === 1 ? "note" : "notes"}. Choose where it goes with the step numbers, then click Paste.`);
+}
+
+// Replaces what's in the steps it lands on, in this pattern or another.
+function pasteClipboard() {
+  if (!state.clipboard) return;
+  if (!state.selection) {
+    setStatus("Click a step number to choose where to paste.", true);
+    return;
+  }
+  closeNoteEditor({ restoreFocus: false });
+  remember();
+  const { start } = state.selection;
+  const length = lengthPulses();
+  const end = Math.min(start + state.clipboard.span, length);
+  const pasted = state.clipboard.notes
+    .map((n) => ({ ...n, time: n.time + start }))
+    .filter((n) => n.time < length)
+    .map((n) => ({ ...n, length: Math.min(n.length, length - n.time) }));
+  slot().notes = [...notes().filter((n) => n.time < start || n.time >= end), ...pasted]
+    .sort((a, b) => a.time - b.time || a.note - b.note);
+  state.selection = { start, end };
+  renderGrid();
+  renderChrome();
+  saveSoon();
+  setStatus(`Pasted ${pasted.length} ${pasted.length === 1 ? "note" : "notes"}. Undo takes it back.`);
+}
+
+// Sets velocity on the chosen steps, or the whole pattern if none are chosen.
+function setBulkVelocity() {
+  const value = Number($("bulk-velocity").value);
+  if (!Number.isInteger(value) || value < 1 || value > 127) {
+    setStatus("Velocity goes from 1 to 127.", true);
+    return;
+  }
+  const range = state.selection;
+  const targets = range ? notes().filter((n) => n.time >= range.start && n.time < range.end) : notes();
+  if (!targets.length) {
+    setStatus(range ? "There are no notes in the chosen steps." : "This pattern has no notes.", true);
+    return;
+  }
+  remember();
+  targets.forEach((n) => { n.velocity = value / 127; });
+  document.querySelectorAll(".cell").forEach(paintCell);
+  renderChrome();
+  saveSoon();
+  setStatus(`Set ${targets.length} ${targets.length === 1 ? "note" : "notes"} to velocity ${value}.`);
+}
+
 /* ---------- Undo ---------- */
 
 function remember() {
@@ -325,6 +468,8 @@ function renderGrid() {
     const time = windowStart + step * state.resolution;
     const label = document.createElement("div");
     label.className = "step-number";
+    label.dataset.time = String(time);
+    label.title = "Click or drag to choose steps for Copy, Paste and Velocity";
     if (time % BAR === 0) {
       label.classList.add("bar-start");
       label.textContent = String(time / BAR + 1);
@@ -362,6 +507,8 @@ function renderGrid() {
   grid.replaceChildren(...nodes);
   document.querySelectorAll(".cell").forEach(paintCell);
   renderNoteBars();
+  updateSelectionMarks();
+  renderLane();
 }
 
 function notesInCell(note, time) {
@@ -419,6 +566,13 @@ function renderNoteBars() {
     bar.style.setProperty("--gaps", String(Math.max(0, Math.ceil(steps) - 1)));
     bar.style.left = `${((barStart - anchorTime) / state.resolution) * 100}%`;
     bar.style.setProperty("--velocity", String(0.3 + 0.7 * note.velocity));
+    if (note.substep && note.time === barStart) {
+      const mark = document.createElement("span");
+      mark.className = "note-sub";
+      mark.textContent = Music.SUB_STEPS[note.substep];
+      bar.classList.add("sub");
+      bar.append(mark);
+    }
     // A note running past this page can't be resized from here.
     if (noteEnd <= end) {
       const handle = document.createElement("span");
@@ -492,6 +646,9 @@ function setBars(bars) {
   slot().notes = notes()
     .filter((n) => n.time < length)
     .map((n) => ({ ...n, length: Math.min(n.length, length - n.time) }));
+  if (slot().lanes) {
+    for (const [cc, points] of Object.entries(slot().lanes)) slot().lanes[cc] = points.filter((point) => point.time < length);
+  }
   if (state.nextPulse >= length) state.nextPulse = 0;
   renderGrid();
   renderChrome();
@@ -612,6 +769,20 @@ function bindGridEvents() {
     if (state.lengthDrag) moveLengthDrag(event);
   });
   grid.addEventListener("pointerdown", (event) => {
+    const number = event.target.closest(".step-number");
+    if (number && event.button === 0) {
+      const time = Number(number.dataset.time);
+      const range = state.selection;
+      // A click on the only chosen step clears it.
+      if (range && range.start === time && range.end === time + state.resolution) {
+        clearSelection();
+      } else {
+        state.selecting = time;
+        selectSteps(time, time);
+      }
+      event.preventDefault();
+      return;
+    }
     const handle = event.target.closest(".note-handle");
     if (handle && event.button === 0 && !event.ctrlKey) {
       if (state.editor) closeNoteEditor({ restoreFocus: false });
@@ -663,6 +834,11 @@ function bindGridEvents() {
     saveSoon();
   });
   grid.addEventListener("pointerover", (event) => {
+    if (state.selecting !== null) {
+      const over = event.target.closest(".step-number, .cell");
+      if (over) selectSteps(state.selecting, Number(over.dataset.time));
+      return;
+    }
     const cell = event.target.closest(".cell");
     if (!cell || !state.paint) return;
     const note = Number(cell.dataset.note);
@@ -676,6 +852,7 @@ function bindGridEvents() {
     renderChrome();
   });
   window.addEventListener("pointerup", () => {
+    state.selecting = null;
     const drag = state.lengthDrag;
     if (drag && drag.pressed && !drag.moved) {
       slot().notes = notes().filter((n) => !drag.items.includes(n));
@@ -764,6 +941,7 @@ function fillNoteEditor() {
   $("edit-offset").max = maxOffset;
   $("edit-offset-range").textContent = `ticks, 0-${maxOffset}`;
   $("edit-probability").value = first.probability ?? 100;
+  $("edit-substep").value = String(first.substep || 0);
   for (const id of ["edit-velocity", "edit-length", "edit-offset", "edit-probability"]) {
     $(id).setAttribute("aria-invalid", "false");
   }
@@ -829,6 +1007,14 @@ function bindNoteEditor() {
     editorNumber("edit-probability", 0, 100, (value) => {
       changeEditorNotes((found) => found.forEach((n) => { n.probability = value; }));
     });
+  });
+  $("edit-substep").addEventListener("change", (event) => {
+    const value = Number(event.target.value);
+    changeEditorNotes((found) => found.forEach((n) => {
+      if (value) n.substep = value;
+      else delete n.substep;
+    }));
+    renderNoteBars();
   });
   // Leaving a field with a bad value puts back the value actually in use.
   $("note-editor").addEventListener("focusout", (event) => {
@@ -1050,18 +1236,114 @@ function refreshPorts() {
   }
 }
 
-// Knobs moved on the S-1 update the matching controls here.
+// Knobs moved on the S-1 update the matching controls here, and keys can be recorded.
 function handleMidiInput(event) {
-  const [status, cc, value] = event.data;
-  if ((status & 0xF0) !== 0xB0 || (status & 0x0F) !== state.channel) return;
-  if (!S1Params.BY_CC.has(cc)) return;
-  state.values[cc] = value;
-  updateParamControl(cc);
+  const [status, first, second] = event.data;
+  if ((status & 0x0F) !== state.channel) return;
+  const kind = status & 0xF0;
+  const at = event.timeStamp || performance.now();
+  if (kind === 0x90 && second > 0) {
+    recordNoteOn(first, second, at);
+  } else if (kind === 0x80 || kind === 0x90) {
+    recordNoteOff(first, at);
+  } else if (kind === 0xB0 && S1Params.BY_CC.has(first)) {
+    state.values[first] = second;
+    updateParamControl(first);
+  }
+}
+
+/* ---------- Recording from the S-1's keys ---------- */
+
+const ECHO_WINDOW_MS = 40; // A note this close to one we sent is the S-1 echoing it.
+const CHORD_WINDOW_MS = 80; // Keys this close together count as one chord in step entry.
+
+function toggleRecording() {
+  if (state.recording) {
+    state.recording = false;
+    state.recOpen.clear();
+    $("record").setAttribute("aria-pressed", "false");
+    setStatus("Stopped recording.");
+    return;
+  }
+  if (!state.input) {
+    setStatus("No S-1 found to record from. Connect it and turn it on.", true);
+    return;
+  }
+  closeNoteEditor({ restoreFocus: false });
+  remember();
+  renderChrome();
+  state.recording = true;
+  state.recLast = 0;
+  state.recStep = state.selection ? state.selection.start : 0;
+  $("record").setAttribute("aria-pressed", "true");
+  if (state.playing) {
+    setStatus("Recording. Play the S-1's keys, and notes land on the nearest step. Undo takes it all back.");
+  } else {
+    moveRecordCursor(state.recStep);
+    setStatus("Step recording. Each key adds a note and moves on a step. Press Play to record in time instead.");
+  }
+}
+
+function moveRecordCursor(time) {
+  state.recStep = time;
+  if (time < state.windowStart || time >= state.windowStart + state.windowSpan) {
+    goToPage(Math.floor(time / (state.pageBars * BAR)));
+  }
+  selectSteps(time, time);
+}
+
+function nearestStep(pulse) {
+  return (Math.round(pulse / state.resolution) * state.resolution) % lengthPulses();
+}
+
+function recordNoteOn(note, velocity, at) {
+  if (!state.recording || state.preview) return;
+  if (state.recent.some((sent) => sent.note === note && Math.abs(sent.at - at) < ECHO_WINDOW_MS)) return;
+  let time;
+  if (state.playing) {
+    time = nearestStep(pulseAt(at));
+  } else {
+    const chord = at - state.recLast < CHORD_WINDOW_MS;
+    if (!chord && state.recLast) {
+      moveRecordCursor((state.recStep + state.resolution) % lengthPulses());
+    }
+    time = state.recStep;
+    state.recLast = at;
+  }
+  const existing = notes().find((n) => n.note === note && n.time === time);
+  const item = existing || { time, note, velocity: velocity / 127, length: state.resolution, probability: 100 };
+  if (!existing) {
+    notes().push(item);
+    notes().sort((a, b) => a.time - b.time || a.note - b.note);
+  }
+  state.recOpen.set(note, { item, pulse: state.playing ? pulseAt(at) : null });
+  if (needsRowsFor([item])) renderGrid();
+  else repaintFor([item]);
+  renderChrome();
+  saveSoon();
+}
+
+// How long a key was held sets the note's length, when recording in time.
+function recordNoteOff(note, at) {
+  const open = state.recOpen.get(note);
+  if (!open) return;
+  state.recOpen.delete(note);
+  if (!state.playing || open.pulse === null) return;
+  const length = lengthPulses();
+  const held = ((pulseAt(at) - open.pulse) % length + length) % length;
+  const steps = Math.max(1, Math.round(held / state.resolution));
+  open.item.length = Math.min(steps * state.resolution, length - open.item.time);
+  renderNoteBars();
+  saveSoon();
 }
 
 function sendNote(note, velocity, atTime, lengthMs) {
   if (!state.output) return;
   const value = Math.max(1, Math.min(127, Math.round(velocity * 127)));
+  if (state.recording) {
+    state.recent.push({ note, at: atTime });
+    if (state.recent.length > 64) state.recent.shift();
+  }
   try {
     state.output.send([0x90 | state.channel, note, value], atTime);
     state.output.send([0x80 | state.channel, note, 0], atTime + lengthMs);
@@ -1091,6 +1373,7 @@ const msPerPulse = () => 60000 / (currentBpm() * PPQ);
 const sendingClock = () => $("clock").checked || state.sendOnce;
 
 function currentBpm() {
+  if (state.preview) return state.preview.bpm;
   const value = Number($("bpm").value);
   return value >= 20 && value <= 300 ? value : 120;
 }
@@ -1099,57 +1382,264 @@ function schedule() {
   const horizon = performance.now() + SCHEDULE_AHEAD_MS;
   const ms = msPerPulse();
   while (state.nextTime < horizon) {
+    const playing = state.preview || slot();
     const from = state.nextPulse;
     const to = from + CHUNK_PULSES;
     if (sendingClock() && from % CLOCK_PULSES === 0 && state.output) {
       state.output.send([0xF8], state.nextTime);
     }
     if (!state.sendOnce) scheduleMotions(from, to, ms);
-    for (const note of notes()) {
+    for (const note of playing.notes) {
       if (note.time >= from && note.time < to && Math.random() * 100 < (note.probability ?? 100)) {
-        sendNote(note.note, note.velocity, state.nextTime + (note.time - from) * ms, note.length * ms);
+        for (const part of Music.noteParts(note)) {
+          sendNote(note.note, note.velocity, state.nextTime + (part.time - from) * ms, part.length * ms);
+        }
       }
     }
     state.nextTime += CHUNK_PULSES * ms;
-    state.nextPulse = to >= lengthPulses() ? 0 : to;
+    state.nextPulse = to >= lengthPulses(playing) ? 0 : to;
     if (state.nextPulse === 0 && state.sendOnce) {
       finishSendOnce();
       return;
     }
-    if (state.nextPulse === 0 && state.queued !== null) switchTo(state.queued);
+    if (state.nextPulse === 0 && !state.preview) {
+      if (state.queued !== null) switchTo(state.queued);
+      else advanceChain();
+    }
   }
+}
+
+const chainList = () => (state.chainOn ? Music.parseChain(state.chain) || [] : []);
+
+function advanceChain() {
+  const chain = chainList();
+  if (!chain.length) return;
+  state.chainPos = (state.chainPos + 1) % chain.length;
+  if (chain[state.chainPos] !== state.current) switchTo(chain[state.chainPos]);
+  setStatus(`Chain: pattern ${chain[state.chainPos] + 1}, ${state.chainPos + 1} of ${chain.length}.`);
+}
+
+function setChain(text) {
+  state.chain = text;
+  const valid = Music.parseChain(text) !== null;
+  $("chain").setAttribute("aria-invalid", String(!valid));
+  if (!valid) setStatus("A chain is pattern numbers from 1 to 16, such as 1 1 2 3.", true);
+  saveSoon();
 }
 
 // Plays a loaded patch's recorded knob movements. Each pass starts from the current
 // sound's values, as the movements only cover part of the pattern.
 function scheduleMotions(from, to, ms) {
-  const source = state.sources[state.current];
-  if (!source) return;
-  source.motions ??= Prm.readMotions(source.text);
-  if (!source.motions.length) return;
-  if (from === 0) {
-    source.base ??= Prm.readValues(source.text);
-    for (const cc of new Set(source.motions.map((m) => m.cc))) {
-      const value = state.values[cc] ?? source.base[cc];
-      if (value !== undefined) sendController(cc, value, state.nextTime);
+  const lanes = state.preview ? state.preview.lanes : lanesFor();
+  if (!lanes) return;
+  const length = lengthPulses(state.preview || slot());
+  for (const [cc, points] of Object.entries(lanes)) {
+    if (from === 0) {
+      const value = baseValue(cc);
+      if (value !== undefined) sendController(Number(cc), value, state.nextTime);
     }
-  }
-  for (const motion of source.motions) {
-    if (motion.time >= from && motion.time < to && motion.time < lengthPulses()) {
-      sendController(motion.cc, motion.value, state.nextTime + (motion.time - from) * ms);
+    for (const point of points) {
+      if (point.time >= from && point.time < to && point.time < length) {
+        sendController(Number(cc), point.value, state.nextTime + (point.time - from) * ms);
+      }
     }
   }
 }
 
-function restoreAfterMotions() {
+// What a knob returns to, as the movements only cover part of the pattern.
+function baseValue(cc) {
   const source = state.sources[state.current];
-  if (!source || !source.motions || !source.motions.length) return;
+  if (state.values[cc] !== undefined || !source) return state.values[cc];
   source.base ??= Prm.readValues(source.text);
+  return source.base[cc];
+}
+
+function restoreAfterMotions() {
+  const lanes = lanesFor();
+  if (!lanes) return;
   // Controls edited since loading keep their new value.
-  for (const cc of new Set(source.motions.map((m) => m.cc))) {
-    const value = state.values[cc] ?? source.base[cc];
-    if (value !== undefined) sendController(cc, value, performance.now() + SCHEDULE_AHEAD_MS + 25);
+  for (const cc of Object.keys(lanes)) {
+    const value = baseValue(cc);
+    if (value !== undefined) sendController(Number(cc), value, performance.now() + SCHEDULE_AHEAD_MS + 25);
   }
+}
+
+/* ---------- Drawing knob movements ---------- */
+
+const MOTION_TICKS = 30; // The S-1 stores 8 points per step.
+const MAX_LANES = 8;
+
+// Movements this pattern has been given, or else the ones in its loaded patch.
+function lanesFor(index = state.current) {
+  const own = state.slots[index].lanes;
+  if (own) return own;
+  const source = state.sources[index];
+  if (!source) return null;
+  source.lanes ??= Prm.readLanes(source.text);
+  return source.lanes;
+}
+
+function editableLanes() {
+  slot().lanes ??= JSON.parse(JSON.stringify(lanesFor() || {}));
+  return slot().lanes;
+}
+
+// Only movements changed here need writing, as a patch's own are kept exactly otherwise.
+function drawnMotions() {
+  if (!slot().lanes) return null;
+  return Object.entries(slot().lanes).flatMap(([cc, points]) =>
+    points.map((point) => ({ time: point.time, cc: Number(cc), value: point.value })));
+}
+
+function fillLaneOptions() {
+  const lanes = lanesFor() || {};
+  const select = $("lane-cc");
+  select.replaceChildren(...S1Params.ALL
+    .filter((param) => param.type === "range" || param.type === "bipolar")
+    .map((param) => new Option(`${lanes[param.cc]?.length ? "* " : ""}${param.name}`, String(param.cc))));
+  select.value = String(state.laneCc);
+}
+
+function setLaneVisible(visible) {
+  state.showLane = visible;
+  $("lane").hidden = !visible;
+  $("lane-toggle").setAttribute("aria-pressed", String(visible));
+  renderGrid();
+  saveSoon();
+}
+
+function renderLane() {
+  if (!state.showLane) return;
+  fillLaneOptions();
+  const first = document.querySelector(".cell");
+  const last = document.querySelector(".grid > :last-child");
+  if (!first || !last) return;
+  const left = first.getBoundingClientRect().left;
+  const width = last.getBoundingClientRect().right - left;
+  const canvas = $("lane-canvas");
+  const laneLeft = $("lane").getBoundingClientRect().left + parseFloat(getComputedStyle($("lane")).paddingLeft);
+  canvas.style.marginLeft = `${left - laneLeft}px`;
+  canvas.style.width = `${width}px`;
+  const scale = window.devicePixelRatio || 1;
+  const height = canvas.clientHeight;
+  canvas.width = Math.round(width * scale);
+  canvas.height = Math.round(height * scale);
+  const ctx = canvas.getContext("2d");
+  ctx.scale(scale, scale);
+  const style = getComputedStyle(document.documentElement);
+  ctx.fillStyle = style.getPropertyValue("--cell");
+  ctx.fillRect(0, 0, width, height);
+  const span = state.windowSpan || 1;
+  const xAt = (time) => ((time - state.windowStart) / span) * width;
+  ctx.fillStyle = style.getPropertyValue("--line");
+  for (let time = state.windowStart; time < state.windowStart + span; time += state.resolution) {
+    ctx.fillRect(xAt(time), 0, 1, height);
+  }
+  ctx.fillStyle = style.getPropertyValue("--accent");
+  const points = (lanesFor() || {})[state.laneCc] || [];
+  for (const point of points) {
+    if (point.time < state.windowStart || point.time >= state.windowStart + span) continue;
+    const bar = (point.value / 127) * height;
+    ctx.fillRect(xAt(point.time), height - bar, Math.max(1, xAt(point.time + MOTION_TICKS) - xAt(point.time)), bar);
+  }
+  // Where the knob sits outside the drawn movements.
+  const resting = baseValue(state.laneCc);
+  if (resting !== undefined) {
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, height - (resting / 127) * height, width, 1);
+  }
+}
+
+function setLanePoint(points, time, value, erase) {
+  const index = points.findIndex((point) => point.time === time);
+  if (erase) {
+    if (index >= 0) points.splice(index, 1);
+  } else if (index >= 0) {
+    points[index].value = value;
+  } else {
+    points.push({ time, value });
+  }
+}
+
+function laneStroke(event) {
+  const drag = state.laneDraw;
+  const box = $("lane-canvas").getBoundingClientRect();
+  const x = Math.max(0, Math.min(box.width - 1, event.clientX - box.left));
+  const y = Math.max(0, Math.min(box.height, event.clientY - box.top));
+  const end = Math.min(state.windowStart + state.windowSpan, lengthPulses());
+  const raw = state.windowStart + (x / box.width) * state.windowSpan;
+  const time = Math.min(end - MOTION_TICKS, Math.floor(raw / MOTION_TICKS) * MOTION_TICKS);
+  const value = Math.round((1 - y / box.height) * 127);
+  const points = slot().lanes[state.laneCc];
+  // Fills the gap since the last event, as a fast drag skips over points.
+  const from = drag.last ? drag.last.time : time;
+  const startValue = drag.last ? drag.last.value : value;
+  const direction = time >= from ? MOTION_TICKS : -MOTION_TICKS;
+  const count = Math.abs(time - from) / MOTION_TICKS;
+  for (let index = 0; index <= count; index += 1) {
+    const share = count ? index / count : 1;
+    setLanePoint(points, from + index * direction, Math.round(startValue + (value - startValue) * share), drag.erase);
+  }
+  drag.last = { time, value };
+  renderLane();
+}
+
+function bindLane() {
+  const canvas = $("lane-canvas");
+  canvas.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0) return;
+    const lanes = lanesFor() || {};
+    const used = Object.keys(lanes).filter((cc) => lanes[cc].length).length;
+    if (!lanes[state.laneCc]?.length && used >= MAX_LANES) {
+      setStatus(`The S-1 records ${MAX_LANES} knobs per pattern. Clear one first.`, true);
+      return;
+    }
+    remember();
+    editableLanes()[state.laneCc] ??= [];
+    state.laneDraw = { erase: event.altKey, last: null };
+    canvas.setPointerCapture(event.pointerId);
+    laneStroke(event);
+    renderChrome();
+    event.preventDefault();
+  });
+  canvas.addEventListener("pointermove", (event) => {
+    if (state.laneDraw) laneStroke(event);
+  });
+  const finish = () => {
+    if (!state.laneDraw) return;
+    state.laneDraw = null;
+    const lanes = slot().lanes;
+    lanes[state.laneCc].sort((a, b) => a.time - b.time);
+    if (!lanes[state.laneCc].length) delete lanes[state.laneCc];
+    renderLane();
+    saveSoon();
+  };
+  canvas.addEventListener("pointerup", finish);
+  canvas.addEventListener("pointercancel", finish);
+  $("lane-cc").addEventListener("change", (event) => {
+    state.laneCc = Number(event.target.value);
+    renderLane();
+    saveSoon();
+  });
+  $("lane-clear").addEventListener("click", () => {
+    if (!(lanesFor() || {})[state.laneCc]?.length) return;
+    remember();
+    delete editableLanes()[state.laneCc];
+    const value = baseValue(state.laneCc);
+    if (value !== undefined) sendController(state.laneCc, value);
+    renderLane();
+    renderChrome();
+    saveSoon();
+  });
+  $("lane-toggle").addEventListener("click", () => setLaneVisible(!state.showLane));
+}
+
+function renderPeers(names) {
+  const pill = $("sync-peers");
+  pill.hidden = !$("sync").checked;
+  pill.textContent = names.length ? `Linked: ${names.join(", ")}` : "Not linked";
+  pill.className = `pill ${names.length ? "ok" : ""}`;
+  pill.title = names.length ? "Play, stop and tempo are shared with this page." : "The other grid isn't open in this browser, or has Sync off.";
 }
 
 // Plays together with the other grid when both are open. See sync.js.
@@ -1175,7 +1665,9 @@ const link = Sync.connect({
     });
   },
   status: (message, isError) => setStatus(message, isError),
+  peers: renderPeers,
 });
+renderPeers([]);
 
 const announceTempo = () => link.announceTempo({
   bpm: currentBpm(), nextTime: state.nextTime, nextPulse: state.playing ? state.nextPulse : 0,
@@ -1188,11 +1680,16 @@ function play({ startAt = null, fromLink = false } = {}) {
   }
   state.playing = true;
   state.nextPulse = 0;
-  const shared = fromLink || state.sendOnce ? null : link.announcePlay(currentBpm());
+  const chain = state.sendOnce || state.preview ? [] : chainList();
+  if (chain.length) {
+    state.chainPos = 0;
+    if (state.current !== chain[0]) switchTo(chain[0]);
+  }
+  const shared = fromLink || state.sendOnce || state.preview ? null : link.announcePlay(currentBpm());
   state.nextTime = startAt ?? shared ?? performance.now() + 60;
   if (sendingClock()) state.output.send([0xFA], state.nextTime);
   $("play").textContent = "Stop";
-  $("playhead").hidden = false;
+  $("playhead").hidden = Boolean(state.preview);
   schedule();
   requestAnimationFrame(drawPlayhead);
 }
@@ -1203,8 +1700,12 @@ function allNotesOff(at) {
 
 function stop({ fromLink = false } = {}) {
   state.queued = null;
-  if (!state.playing) return;
-  if (!fromLink && !state.sendOnce) link.announceStop();
+  if (!state.playing) {
+    // A preview waits a moment for its sound to arrive before it starts playing.
+    if (state.preview) endPreview();
+    return;
+  }
+  if (!fromLink && !state.sendOnce && !state.preview) link.announceStop();
   if (sendingClock() && state.output) state.output.send([0xFC]);
   state.playing = false;
   state.sendOnce = false;
@@ -1215,6 +1716,39 @@ function stop({ fromLink = false } = {}) {
   $("play").textContent = "Play";
   $("playhead").hidden = true;
   renderSlots();
+  if (state.preview) endPreview();
+}
+
+// Hears a patch without touching the grid, and puts the sound back afterwards.
+function previewPatch(item) {
+  const same = state.preview && state.preview.name === item.name;
+  stop();
+  if (same) return;
+  if (!state.output) {
+    setStatus("No MIDI output connected.", true);
+    return;
+  }
+  state.preview = {
+    name: item.name,
+    notes: Prm.readNotes(item.text),
+    bars: Prm.readBars(item.text),
+    bpm: Prm.readBpm(item.text),
+    lanes: Prm.readLanes(item.text),
+    before: { ...state.values },
+  };
+  const finished = applySound(Prm.readValues(item.text));
+  renderLibrary();
+  setStatus(`Hearing "${item.name}". Your grid and sound come back when it stops.`);
+  window.setTimeout(() => { if (state.preview && !state.playing) play(); }, Math.max(0, finished - performance.now()) + 40);
+}
+
+function endPreview() {
+  const { before } = state.preview;
+  state.preview = null;
+  state.values = {};
+  applySound(before);
+  renderLibrary();
+  setStatus("Back to your sound.");
 }
 
 function panic() {
@@ -1249,11 +1783,16 @@ function finishSendOnce() {
   setStatus("Sent one pass. If the S-1 was recording, play it back to check the result.");
 }
 
-function drawPlayhead() {
-  if (!state.playing) return;
+// Where playback is at a given moment.
+function pulseAt(time) {
   const length = lengthPulses();
-  const behind = (state.nextTime - performance.now()) / msPerPulse();
-  const pulse = ((state.nextPulse - behind) % length + length) % length;
+  const behind = (state.nextTime - time) / msPerPulse();
+  return ((state.nextPulse - behind) % length + length) % length;
+}
+
+function drawPlayhead() {
+  if (!state.playing || state.preview) return;
+  const pulse = pulseAt(performance.now());
   const playingPage = Math.floor(pulse / (state.pageBars * BAR));
   // Page turns redraw the grid, so they wait while a step is being edited.
   if (playingPage !== state.page && !state.editor && !state.lengthDrag && !state.paint) goToPage(playingPage);
@@ -1285,6 +1824,43 @@ function exportMidi() {
   setStatus(`Exported pattern ${state.current + 1}.`);
 }
 
+function downloadBackup() {
+  const file = new Blob([JSON.stringify(Backup.pack(state))], { type: "application/json" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(file);
+  link.download = `s1-grid-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  link.click();
+  URL.revokeObjectURL(link.href);
+  setStatus("Saved all 16 patterns and the sound to a file.");
+}
+
+async function restoreBackup(file) {
+  let data;
+  try {
+    data = Backup.unpack(JSON.parse(await file.text()), { scales: Music.SCALES, validatePatch: Prm.validate });
+  } catch (error) {
+    setStatus(`Couldn't restore ${file.name}: ${error.message}`, true);
+    return;
+  }
+  if (state.slots.some((item) => item.notes.length)
+    && !window.confirm(`Replace all 16 patterns with the ones in ${file.name}?`)) return;
+  stop();
+  closeNoteEditor({ restoreFocus: false });
+  remember();
+  const { values, ...rest } = data;
+  Object.assign(state, rest);
+  state.page = 0;
+  library.loaded = state.sources[state.current] ? state.sources[state.current].name : null;
+  resetVary();
+  applySound(values);
+  $("chain").value = state.chain;
+  $("chain-on").checked = state.chainOn;
+  renderAll();
+  renderLibrary();
+  saveSoon();
+  setStatus(`Restored ${file.name}. Undo brings back the patterns you had.`);
+}
+
 const IMPORT_BARS = [1, 2, 4, 8];
 
 // Replaces the current pattern, which Undo brings back. The sound doesn't change.
@@ -1311,6 +1887,7 @@ async function importMidi(file) {
     .map((n) => ({ ...n, length: Math.min(n.length, limit - n.time) }));
   slot().bars = bars;
   slot().notes = kept;
+  delete slot().lanes;
   // It's a new pattern, so a patch loaded here earlier no longer applies.
   state.sources[state.current] = null;
   library.loaded = null;
@@ -1571,7 +2148,7 @@ function buildAssignment(slotIndex, source) {
     ? existing.text
     : new TextDecoder("ascii").decode(saveState.files.get(Prm.fileName(slotIndex)));
   const result = Prm.render(template, {
-    notes: notes(), bars: slot().bars, bpm: currentBpm(), values: state.values, keepMotions: Boolean(existing),
+    notes: notes(), bars: slot().bars, bpm: currentBpm(), values: state.values, keepMotions: Boolean(existing), motions: drawnMotions(),
   });
   return { ...result, label: gridSourceLabel() };
 }
@@ -1663,7 +2240,11 @@ async function writeToS1() {
 const LIBRARY_DB = "s1-grid";
 const LIBRARY_KEY = "library-folder";
 const PATCH_EXTENSION = ".PRM";
+const LIBRARY_INFO = "library-info.json";
+
 const library = {
+  info: {},
+  favouritesOnly: false,
   folder: null, status: "none", items: [], search: "", loaded: null, selected: new Set(),
 };
 
@@ -1742,10 +2323,40 @@ async function readPatchFolder(folder) {
   return { items: items.sort(naturalOrder), skipped };
 }
 
+// Favourites and tags, kept beside the patches so they stay with the folder.
+async function readLibraryInfo() {
+  try {
+    const file = await (await library.folder.getFileHandle(LIBRARY_INFO)).getFile();
+    const info = JSON.parse(await file.text());
+    return info && typeof info === "object" ? info : {};
+  } catch {
+    return {};
+  }
+}
+
+async function changeLibraryInfo(name, change) {
+  const entry = { favourite: false, tags: "", ...library.info[name] };
+  change(entry);
+  if (entry.favourite || entry.tags) library.info[name] = entry;
+  else delete library.info[name];
+  try {
+    await writeBytes(library.folder, LIBRARY_INFO, new TextEncoder().encode(JSON.stringify(library.info, null, 2)));
+  } catch (error) {
+    setStatus(`Couldn't save that to the library folder: ${error.message}`, true);
+  }
+  renderLibrary();
+}
+
+function editTags(item) {
+  const answer = window.prompt("Tags for this patch, separated by commas:", library.info[item.name]?.tags || "");
+  if (answer !== null) changeLibraryInfo(item.name, (entry) => { entry.tags = answer.trim().slice(0, 200); });
+}
+
 async function readLibrary() {
   try {
     const { items, skipped } = await readPatchFolder(library.folder);
     library.items = items;
+    library.info = await readLibraryInfo();
     library.status = "ready";
     library.skipped = skipped;
   } catch (error) {
@@ -1776,9 +2387,7 @@ function renderLibrary() {
   } else {
     setLibraryState(message);
   }
-  const term = library.search.trim().toLowerCase();
-  const items = library.items.filter((item) => item.name.toLowerCase().includes(term));
-  $("library-list").replaceChildren(...items.map(libraryRow));
+  $("library-list").replaceChildren(...visiblePatches().map(libraryRow));
   renderLibraryBatch();
 }
 
@@ -1798,7 +2407,11 @@ function renderLibraryBatch() {
 // Select all follows the search, so a filtered list can be sent together.
 function visiblePatches() {
   const term = library.search.trim().toLowerCase();
-  return library.items.filter((item) => item.name.toLowerCase().includes(term));
+  return library.items.filter((item) => {
+    const info = library.info[item.name];
+    if (library.favouritesOnly && !info?.favourite) return false;
+    return item.name.toLowerCase().includes(term) || (info?.tags || "").toLowerCase().includes(term);
+  });
 }
 
 function libraryRow(item) {
@@ -1823,7 +2436,9 @@ function libraryRow(item) {
   name.textContent = item.name;
   const detail = document.createElement("small");
   const motions = item.info.motions ? ", motions" : "";
-  detail.textContent = `${item.info.notes} steps with notes, ${item.bpm} BPM${motions}`;
+  const info = library.info[item.name];
+  const tags = info?.tags ? `. ${info.tags}` : "";
+  detail.textContent = `${item.info.notes} steps with notes, ${item.bpm} BPM${motions}${tags}`;
   load.append(name, detail);
   load.addEventListener("click", () => loadPatch(item));
   const action = (text, title, handler) => {
@@ -1835,12 +2450,20 @@ function libraryRow(item) {
     button.addEventListener("click", handler);
     return button;
   };
+  const hearing = state.preview?.name === item.name;
+  const star = action(info?.favourite ? "★" : "☆", "Favourite", () => {
+    changeLibraryInfo(item.name, (entry) => { entry.favourite = !entry.favourite; });
+  });
+  star.setAttribute("aria-pressed", String(Boolean(info?.favourite)));
   row.append(
     check,
     load,
+    star,
+    action(hearing ? "Stop" : "Hear", "Hear it without changing the grid", () => previewPatch(item)),
     action("Play", "Load and play", () => loadPatch(item, { play: true })),
     action("To S-1", "Save to the S-1", () => openSaveDialog(item.name)),
     action("Name", "Rename", () => renamePatch(item)),
+    action("Tags", "Edit tags", () => editTags(item)),
     action("Del", "Delete from the library", () => deletePatch(item)),
   );
   return row;
@@ -1895,7 +2518,7 @@ async function addPatchToLibrary() {
     if (await fileExists(library.folder, file)
         && !window.confirm(`Replace "${name}" in the library?`)) return;
     const { text, warnings } = Prm.render(template, {
-      notes: notes(), bars: slot().bars, bpm: currentBpm(), values: state.values, keepMotions: Boolean(source),
+      notes: notes(), bars: slot().bars, bpm: currentBpm(), values: state.values, keepMotions: Boolean(source), motions: drawnMotions(),
     });
     await writeBytes(library.folder, file, new TextEncoder().encode(text));
     state.sources[state.current] = { name, text };
@@ -1922,6 +2545,11 @@ async function renamePatch(item) {
     await library.folder.removeEntry(`${item.name}${PATCH_EXTENSION}`);
     if (library.loaded === item.name) library.loaded = name;
     if (library.selected.delete(item.name)) library.selected.add(name);
+    if (library.info[item.name]) {
+      const kept = library.info[item.name];
+      delete library.info[item.name];
+      await changeLibraryInfo(name, (entry) => Object.assign(entry, kept));
+    }
     const current = state.sources[state.current];
     if (current && current.name === item.name) {
       current.name = name;
@@ -1941,6 +2569,7 @@ async function deletePatch(item) {
     await library.folder.removeEntry(`${item.name}${PATCH_EXTENSION}`);
     if (library.loaded === item.name) library.loaded = null;
     library.selected.delete(item.name);
+    if (library.info[item.name]) await changeLibraryInfo(item.name, (entry) => Object.assign(entry, { favourite: false, tags: "" }));
     await readLibrary();
     setStatus(`Deleted "${item.name}".`);
   } catch (error) {
@@ -2228,12 +2857,50 @@ function applySound(values) {
   return at;
 }
 
+/* ---------- Sound variations ---------- */
+
+function resetVary() {
+  state.varyOriginal = null;
+  state.varyLatest = null;
+  renderVary(false);
+}
+
+function renderVary(showingOriginal) {
+  $("vary-compare").disabled = !state.varyOriginal;
+  $("vary-compare").textContent = showingOriginal ? "Hear new" : "Hear original";
+  $("vary-compare").setAttribute("aria-pressed", String(showingOriginal));
+}
+
+function varySound(amount) {
+  const { changes, unknown } = S1Params.vary(state.values, amount);
+  if (!Object.keys(changes).length) {
+    setStatus("Vary needs known values. Load a patch, or move the controls first.", true);
+    return;
+  }
+  state.varyOriginal ??= { ...state.values };
+  applySound(changes);
+  state.varyLatest = { ...state.values };
+  renderVary(false);
+  const skipped = unknown ? ` ${unknown} controls showing ? were left alone.` : "";
+  setStatus(`Changed ${Object.keys(changes).length} controls. Hear original compares them.${skipped}`);
+}
+
+function compareVary() {
+  const showingOriginal = $("vary-compare").getAttribute("aria-pressed") === "true";
+  if (!showingOriginal) state.varyLatest = { ...state.values };
+  applySound(showingOriginal ? state.varyLatest : state.varyOriginal);
+  renderVary(!showingOriginal);
+  setStatus(showingOriginal ? "Hearing the new version." : "Hearing the original.");
+}
+
 function loadPatch(item, { play: startPlaying = false } = {}) {
   stop();
   closeNoteEditor({ restoreFocus: false });
   remember();
+  resetVary();
   const loadedNotes = Prm.readNotes(item.text);
   slot().notes = loadedNotes;
+  delete slot().lanes;
   slot().bars = Prm.readBars(item.text);
   state.sources[state.current] = { name: item.name, text: item.text };
   library.loaded = item.name;
@@ -2250,11 +2917,7 @@ function loadPatch(item, { play: startPlaying = false } = {}) {
   renderAll();
   renderLibrary();
   saveSoon();
-  const { motions, substeps } = item.info;
-  const notes2 = [];
-  if (motions) notes2.push("Its motions play along");
-  if (substeps) notes2.push("step sub-divisions won't play from this page");
-  const extra = notes2.length ? ` ${notes2.join(", and ")}.` : "";
+  const extra = item.info.motions ? " Its motions play along." : "";
   const sent = state.output ? "Sound sent to the S-1." : "No MIDI output, so the sound wasn't sent.";
   setStatus(`Loaded "${item.name}". ${sent}${extra} Some settings, like delay feedback, only apply once it's saved to the S-1.`);
   if (startPlaying && state.output) {
@@ -2397,6 +3060,33 @@ function bindControls() {
     event.target.value = "";
     if (file) importMidi(file);
   });
+  $("shift-left").addEventListener("click", () => shiftInTime(-1));
+  $("shift-right").addEventListener("click", () => shiftInTime(1));
+  $("scale-down").addEventListener("click", () => shiftInScale(-1));
+  $("scale-up").addEventListener("click", () => shiftInScale(1));
+  $("copy").addEventListener("click", copySelection);
+  $("paste").addEventListener("click", pasteClipboard);
+  $("velocity-set").addEventListener("click", setBulkVelocity);
+  $("record").addEventListener("click", toggleRecording);
+  $("chain").addEventListener("change", (event) => setChain(event.target.value));
+  $("chain-on").addEventListener("change", (event) => {
+    state.chainOn = event.target.checked;
+    saveSoon();
+  });
+  $("backup").addEventListener("click", downloadBackup);
+  $("restore").addEventListener("click", () => $("restore-file").click());
+  $("restore-file").addEventListener("change", (event) => {
+    const [file] = event.target.files;
+    event.target.value = "";
+    if (file) restoreBackup(file);
+  });
+  $("vary-small").addEventListener("click", () => varySound(0.06));
+  $("vary-big").addEventListener("click", () => varySound(0.25));
+  $("vary-compare").addEventListener("click", compareVary);
+  $("library-favourites").addEventListener("change", (event) => {
+    library.favouritesOnly = event.target.checked;
+    renderLibrary();
+  });
   $("octave-down").addEventListener("click", () => shiftOctave(-1));
   $("octave-up").addEventListener("click", () => shiftOctave(1));
   $("generate").addEventListener("click", generatePattern);
@@ -2430,7 +3120,15 @@ function bindControls() {
       return;
     }
     if (typing(event.target) || event.target.closest?.("#note-editor")) return;
-    if (event.code === "Space") {
+    if ((event.metaKey || event.ctrlKey) && event.key === "c") {
+      event.preventDefault();
+      copySelection();
+    } else if ((event.metaKey || event.ctrlKey) && event.key === "v") {
+      event.preventDefault();
+      pasteClipboard();
+    } else if (event.key === "Escape") {
+      clearSelection();
+    } else if (event.code === "Space") {
       event.preventDefault();
       if (state.playing) stop(); else play();
     } else if ((event.metaKey || event.ctrlKey) && event.key === "z") {
@@ -2448,6 +3146,12 @@ async function start() {
   bindControls();
   bindGridEvents();
   bindNoteEditor();
+  bindLane();
+  $("edit-substep").replaceChildren(...Music.SUB_STEPS.map((pattern, index) => new Option(index ? pattern.replaceAll("_", "-") : "Off", String(index))));
+  $("chain").value = state.chain;
+  $("chain-on").checked = state.chainOn;
+  $("lane").hidden = !state.showLane;
+  $("lane-toggle").setAttribute("aria-pressed", String(state.showLane));
   renderTabs();
   renderParams();
   renderSounds();

@@ -129,7 +129,27 @@ const S1Params = (() => {
     return String(value);
   }
 
-  return { ALL, BY_CC, SECTIONS, display };
+  // Left out of Vary: tuning and bend ranges put a sound out of tune, and pan, mod wheel
+  // and expression are for performing with rather than part of the sound.
+  const NOT_VARIED = new Set([1, 10, 11, 18, 27, 76, 77, 85, 86, 87]);
+
+  // Nudges every known level by up to the given share of its range, and returns the changes.
+  function vary(values, amount, random = Math.random) {
+    const changes = {};
+    let unknown = 0;
+    for (const param of ALL) {
+      if (!["range", "bipolar"].includes(param.type) || NOT_VARIED.has(param.cc)) continue;
+      const value = values[param.cc];
+      if (value === undefined) {
+        unknown += 1;
+        continue;
+      }
+      changes[param.cc] = Math.max(0, Math.min(127, Math.round(value + (random() * 2 - 1) * amount * 127)));
+    }
+    return { changes, unknown };
+  }
+
+  return { ALL, BY_CC, SECTIONS, display, vary };
 })();
 
 if (typeof module !== "undefined") module.exports = S1Params;

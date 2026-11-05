@@ -24,9 +24,15 @@ never receives your patterns or patches.
 - **Sound control:** every control change in Roland's MIDI chart, 54 in all, grouped into
   tabs. Knobs moved on the S-1 update the page.
 - **Saved sounds:** store and recall named sets of values in the browser.
-- **16 patterns:** with MIDI file import and export, and octave up and down buttons.
+- **16 patterns:** with MIDI file import and export, chains, and one file to back them all
+  up. Shift them in time, move them by scale steps or octaves, and copy and paste steps.
+- **Sub-steps and knob movements:** the S-1's quick repeats, and knob movements drawn under
+  the grid. Both play live and save to the S-1.
+- **Record from the S-1:** in time while playing, or one step at a time while stopped.
+- **Vary:** nudge a sound a little or a lot, and compare it with the original.
 - **Patch library:** keep patches as files in a folder on your computer, pick which ones to
-  import from the S-1 or an S-1 backup, and load one to fill the grid, update the controls, and hear it on the S-1,
+  import from the S-1 or an S-1 backup, hear them without loading, add favourites and tags,
+  and load one to fill the grid, update the controls, and hear it on the S-1,
   including its motions.
 - **Play with MPC Grid:** with [MPC Grid](https://pzuzarte.github.io/mpc-grid/) open in the
   same browser, Play, Stop and tempo on either page control both.
@@ -63,8 +69,8 @@ Then open http://localhost:8773 in Chrome and allow MIDI access.
   and warn you about anything rounded or left out. Motions in the replaced pattern are
   removed, and restore rewrites all 64 patterns from their saved versions.
 - Record to S-1 hasn't been confirmed on the hardware.
-- The drawn wave's shape, motions, and other settings with no MIDI control can only be
-  changed on the S-1.
+- The drawn wave's shape, and other settings with no MIDI control, can only be changed on
+  the S-1.
 - Switch values follow the [S-1 Utility](https://github.com/denzlobin/S1Utility) project's
   hardware testing, as Roland doesn't publish them, and haven't all been checked here.
 

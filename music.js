@@ -207,12 +207,58 @@ const Music = (() => {
   }
 
   // A standard one-track MIDI file, which any DAW can open.
+  // The S-1's sub-step patterns, by the number stored in its files: o plays, _ is silent.
+  const SUB_STEPS = ["o", "oo", "ooo", "oooo", "oo__", "o_o", "_o_", "__o", "oo_", "ooo_", "o_o_", "_o_o", "o__o", "_oo_"];
+  const STEP_TICKS = 240;
+
+  // When a note actually sounds. A sub-step splits its first step, and a longer note
+  // holds from its last part to its end.
+  function noteParts(item) {
+    const pattern = SUB_STEPS[item.substep || 0] || "o";
+    if (pattern === "o") return [{ time: item.time, length: item.length }];
+    const size = STEP_TICKS / pattern.length;
+    const parts = [];
+    [...pattern].forEach((mark, index) => {
+      if (mark === "o") parts.push({ time: item.time + index * size, length: Math.min(size, item.length) });
+    });
+    const last = parts.at(-1);
+    if (item.length > STEP_TICKS) last.length = item.time + item.length - last.time;
+    return parts;
+  }
+
+  // Moves notes through the scale. Returns null if any would leave the MIDI range.
+  function shiftInScale(notes, steps, root, scale) {
+    const moved = notes.map((item) => ({ ...item, note: stepsAbove(item.note, steps, root, scale) }));
+    return moved.every((item) => item.note >= 0 && item.note <= 127) ? moved : null;
+  }
+
+  // Moves notes in time, wrapping around the pattern. A note can't run past the end.
+  function rotateNotes(notes, by, patternLength) {
+    return notes
+      .map((item) => {
+        const time = ((item.time + by) % patternLength + patternLength) % patternLength;
+        return { ...item, time, length: Math.min(item.length, patternLength - time) };
+      })
+      .sort((a, b) => a.time - b.time || a.note - b.note);
+  }
+
+  // "1 1 2 3" to pattern indexes, or null if something isn't a pattern number.
+  function parseChain(text, patterns = 16) {
+    const parts = String(text ?? "").trim().split(/[\s,]+/).filter(Boolean);
+    const chain = parts.map(Number);
+    return chain.every((value) => Number.isInteger(value) && value >= 1 && value <= patterns)
+      ? chain.map((value) => value - 1) : null;
+  }
+
   function midiFile(notes, { bpm = 120, channel = 0 } = {}) {
     const events = [];
     for (const item of notes) {
       const velocity = Math.max(1, Math.min(127, Math.round(item.velocity * 127)));
-      events.push({ time: item.time, order: 1, bytes: [0x90 | channel, item.note, velocity] });
-      events.push({ time: item.time + item.length, order: 0, bytes: [0x80 | channel, item.note, 0] });
+      for (const part of noteParts(item)) {
+        const start = Math.round(part.time);
+        events.push({ time: start, order: 1, bytes: [0x90 | channel, item.note, velocity] });
+        events.push({ time: Math.round(part.time + part.length), order: 0, bytes: [0x80 | channel, item.note, 0] });
+      }
     }
     // At equal times, note-offs go first so repeated notes aren't cut short.
     events.sort((a, b) => a.time - b.time || a.order - b.order);
@@ -362,6 +408,7 @@ const Music = (() => {
     NOTE_NAMES,
     PPQ,
     SCALES,
+    SUB_STEPS,
     chordNotes,
     detectKey,
     generate,
@@ -370,8 +417,12 @@ const Music = (() => {
     mapNotes,
     midiFile,
     noteName,
+    noteParts,
     notesInKey,
+    parseChain,
     parseMidi,
+    rotateNotes,
+    shiftInScale,
     shiftOctaves,
     stepsAbove,
   };

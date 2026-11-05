@@ -42,10 +42,6 @@
   <button id="undo" type="button" disabled>Undo</button>
   <button id="duplicate" type="button" title="Copy this pattern to the next empty slot">Duplicate</button>
   <button id="clear" type="button">Clear</button>
-  <div class="button-pair">
-    <button id="octave-down" type="button" title="Move every note in this pattern down an octave" aria-label="Octave down">Oct -</button>
-    <button id="octave-up" type="button" title="Move every note in this pattern up an octave" aria-label="Octave up">Oct +</button>
-  </div>
 </section>
 
 <section class="bar transport" aria-label="Transport and grid settings">
@@ -97,6 +93,43 @@
   </label>
 </section>
 
+<section class="bar tools" aria-label="Pattern tools">
+  <div class="button-pair">
+    <button id="shift-left" type="button" title="Move the whole pattern one step earlier, wrapping around" aria-label="Move earlier">Shift &lt;</button>
+    <button id="shift-right" type="button" title="Move the whole pattern one step later, wrapping around" aria-label="Move later">Shift &gt;</button>
+  </div>
+  <div class="button-pair">
+    <button id="scale-down" type="button" title="Move every note down one step in the scale" aria-label="Scale step down">Scale -</button>
+    <button id="scale-up" type="button" title="Move every note up one step in the scale" aria-label="Scale step up">Scale +</button>
+  </div>
+  <div class="button-pair">
+    <button id="octave-down" type="button" title="Move every note in this pattern down an octave" aria-label="Octave down">Oct -</button>
+    <button id="octave-up" type="button" title="Move every note in this pattern up an octave" aria-label="Octave up">Oct +</button>
+  </div>
+  <div class="button-pair">
+    <button id="copy" type="button" title="Copy the chosen steps. Choose them by clicking or dragging along the step numbers.">Copy</button>
+    <button id="paste" type="button" title="Paste at the chosen step, replacing what's there, in this pattern or another" disabled>Paste</button>
+  </div>
+  <label title="Sets velocity on the chosen steps, or the whole pattern if none are chosen">Velocity
+    <input id="bulk-velocity" type="number" min="1" max="127" step="1" value="100">
+  </label>
+  <button id="velocity-set" type="button">Set</button>
+  <button id="record" class="toggle" type="button" aria-pressed="false" title="Record notes from the S-1's keys. Press Play to record in time, or just press keys to add them step by step.">Rec</button>
+  <button id="lane-toggle" class="toggle" type="button" aria-pressed="false" title="Draw knob movements under the grid">Knobs</button>
+  <label title="Pattern numbers to play in order, such as 1 1 2 3">Chain
+    <input id="chain" type="text" maxlength="200" placeholder="1 1 2 3" spellcheck="false">
+  </label>
+  <label class="check" title="Play the chain when you press Play">
+    <input id="chain-on" type="checkbox"> On
+  </label>
+  <div class="spacer"></div>
+  <div class="button-pair">
+    <button id="backup" type="button" title="Save all 16 patterns and the sound to one file">Back up</button>
+    <button id="restore" type="button" title="Load all 16 patterns and the sound from a backup file">Restore</button>
+  </div>
+  <input id="restore-file" type="file" accept=".json,application/json" hidden>
+</section>
+
 <div class="workspace">
   <div class="grid-column">
     <div id="pager" class="pager" hidden>
@@ -108,6 +141,16 @@
       <div id="grid" class="grid"></div>
       <div id="playhead" class="playhead" hidden></div>
     </main>
+    <section id="lane" class="lane" aria-label="Knob movements" hidden>
+      <div class="lane-head">
+        <label>Knob
+          <select id="lane-cc"></select>
+        </label>
+        <button id="lane-clear" type="button" title="Remove this knob's movements from the pattern">Clear knob</button>
+        <span class="lane-help">Drag to draw, Alt-drag to erase. * has movements. The white line is where the knob rests.</span>
+      </div>
+      <canvas id="lane-canvas" class="lane-canvas" aria-label="Drawing area for knob movements"></canvas>
+    </section>
   </div>
 
   <aside class="panel" aria-label="Sound">
@@ -119,7 +162,8 @@
         <button id="library-import" type="button" title="Copy every pattern from an S-1 BACKUP folder into the library">Import backup</button>
       </div>
       <p id="library-state" class="library-state"></p>
-      <input id="library-search" type="search" placeholder="Search patches" aria-label="Search patches" spellcheck="false">
+      <input id="library-search" type="search" placeholder="Search names and tags" aria-label="Search patches" spellcheck="false">
+      <label class="check library-favourites"><input id="library-favourites" type="checkbox"> Favourites only</label>
       <div class="library-batch">
         <button id="library-select-all" type="button">Select all</button>
         <button id="library-select-none" type="button">Clear</button>
@@ -135,6 +179,12 @@
         </label>
         <button id="sound-send" type="button" title="Send this sound to the S-1">Load</button>
         <button id="sound-delete" type="button">Delete</button>
+      </div>
+      <div class="vary-bar">
+        <span class="group-label">Vary</span>
+        <button id="vary-small" type="button" title="Nudge the sound's levels a little">A little</button>
+        <button id="vary-big" type="button" title="Nudge the sound's levels a lot">A lot</button>
+        <button id="vary-compare" type="button" aria-pressed="false" disabled>Hear original</button>
       </div>
       <div class="library-save">
         <input id="library-name" type="text" maxlength="60" placeholder="Patch name" aria-label="Patch name" spellcheck="false">
@@ -163,6 +213,9 @@
     <span class="unit-note">%</span>
     <input id="edit-probability" type="number" min="0" max="100" step="1">
   </label>
+  <label class="editor-row" for="edit-substep" title="Plays the step's notes in quick repeats. o plays and - is silent.">Sub-step
+    <select id="edit-substep"></select>
+  </label>
   <div class="editor-actions">
     <button id="edit-hear" type="button">Hear</button>
     <button id="edit-delete" type="button">Delete</button>
@@ -185,13 +238,14 @@
   <label class="check" title="Plays together with the other grid when both are open in this browser. Play, stop and tempo are shared.">
     <input id="sync" type="checkbox"> Sync
   </label>
+  <span id="sync-peers" class="pill" role="status" hidden></span>
   <button id="save-open" class="primary" type="button" title="Save this pattern and sound onto a pattern on the S-1">Save to S-1</button>
   <button id="send" type="button" title="Plays this pattern once, so the S-1 can record it in real time. See Help.">Record to S-1</button>
   <button id="import" type="button" title="Replace this pattern with the notes from a MIDI file. Undo brings the old one back.">Import MIDI</button>
   <input id="import-file" type="file" accept=".mid,.midi,audio/midi" hidden>
   <button id="export" type="button" title="Download this pattern as a MIDI file">Export MIDI</button>
 </footer>
-<p class="hint">Click: add or remove a step. Drag from an empty step: draw a note. Drag a note: change its length. Cmd-drag: fill steps. Right-click: edit a step. Shift-click: velocity. Click a note name to hear it. Space: play and stop. T: triplets.</p>
+<p class="hint">Click: add or remove a step. Drag from an empty step: draw a note. Drag a note: change its length. Cmd-drag: fill steps. Right-click: edit a step. Shift-click: velocity. Click a note name to hear it. Click step numbers: choose steps. Space: play and stop. T: triplets.</p>
 
 <dialog id="help" class="help" aria-labelledby="help-title">
   <div class="help-head">
@@ -217,7 +271,9 @@
       <li><b>All notes</b> shows every note. Notes outside the key are marked in their row name.</li>
       <li><b>Draw</b> places a single note, a power chord, a triad or a 7th, using notes from the key. To hear chords, set <b>Polyphony</b> to Poly on the VOICE tab.</li>
       <li><b>Idea</b> and <b>Generate</b> write a bassline, melody, arpeggio or chord pattern in the key. Generating replaces the current pattern, and <b>Undo</b> brings it back.</li>
-      <li><b>Oct -</b> and <b>Oct +</b> move every note in the current pattern down or up an octave.</li>
+      <li><b>Shift</b> moves the whole pattern a step earlier or later, wrapping around. <b>Scale</b> moves every note a step through the scale, and <b>Oct</b> moves them an octave.</li>
+      <li>Click or drag along the <b>step numbers</b> above the grid to choose steps. <b>Copy</b> (or <kbd>Cmd</kbd>+<kbd>C</kbd>) copies their notes. Choose where they go, in this pattern or another, then <b>Paste</b> (or <kbd>Cmd</kbd>+<kbd>V</kbd>), which replaces what's there. Click a chosen step again or press <kbd>Esc</kbd> to clear.</li>
+      <li><b>Velocity</b> and <b>Set</b> change every note in the chosen steps, or the whole pattern if none are chosen.</li>
     </ul>
 
     <h3>Mouse and keyboard</h3>
@@ -237,8 +293,23 @@
       </tbody>
     </table>
 
+    <h3>Sub-steps, chains and recording</h3>
+    <ul>
+      <li><b>Sub-step</b>, when you right-click a step, plays it in quick repeats using the S-1's 14 patterns, where <b>o</b> plays and <b>-</b> is silent. They play here, save to the S-1, and show on the note.</li>
+      <li><b>Chain</b> takes pattern numbers such as <b>1 1 2 3</b>. Tick <b>On</b> and Play goes through them in order, looping. Clicking a pattern during playback plays it next, then the chain carries on.</li>
+      <li><b>Rec</b> records from the S-1's keys. While playing, notes land on the nearest step and last as long as you hold them. While stopped, each key adds a note and moves on a step, starting from the chosen step. Undo takes back the whole take.</li>
+    </ul>
+
+    <h3>Drawing knob movements</h3>
+    <ul>
+      <li><b>Knobs</b> opens a lane under the grid. Choose a knob and drag to draw how it moves through the pattern, or Alt-drag to erase. The S-1 stores 8 points per step and up to 8 knobs per pattern.</li>
+      <li>They play from this page and save to the S-1 as motions, as well as to the library. <b>Shift</b> moves them along with the notes.</li>
+      <li>A loaded patch's motions show here too. Drawing replaces its recorded motions with what's shown when you save, and keeps any pitch bend movements.</li>
+    </ul>
+
     <h3>Sound controls</h3>
     <ul>
+      <li><b>Vary</b> nudges the sound's levels a little or a lot, leaving tuning, pan and switches alone. <b>Hear original</b> flips between the sound before you started and the new one.</li>
       <li>The panel on the right has every control the S-1 accepts over MIDI, grouped into tabs. Changes are immediate, even during playback.</li>
       <li>The sound stays the same when you switch patterns. Only loading a patch or a saved sound changes it, and saving a pattern saves the sound as it is then.</li>
       <li>Turning a knob on the S-1 updates the matching control here. A value shown as <b>?</b> hasn't been set or received yet, because the S-1 can't report its settings when asked.</li>
@@ -249,6 +320,8 @@
     <h3>Patch library</h3>
     <ul>
       <li>The <b>LIBRARY</b> tab keeps patches as files in a folder you choose on this computer. Each holds a full S-1 pattern: notes, motions, and every sound setting.</li>
+      <li><b>Hear</b> plays a patch at its own tempo with its own sound, without changing the grid. Your sound comes back when it stops, apart from any controls showing <b>?</b>, as the page doesn't know what they were.</li>
+      <li><b>☆</b> marks a favourite, and <b>Favourites only</b> shows just those. <b>Tags</b> adds words that the search also finds. Both are saved in a <b>library-info.json</b> file in your library folder.</li>
       <li><b>Import from S-1</b> lets you pick which of the S-1's 64 patterns to copy into the library, and name each one. It reads the S-1's USB drive, or a <b>BACKUP</b> folder you saved, and doesn't change anything on the S-1.</li>
       <li><b>Import backup</b> fills it from an S-1 <b>BACKUP</b> folder, with its patterns that have notes and one blank patch. These are whatever is saved on your S-1, which may include your own edits.</li>
       <li>Click a patch to load it: the grid fills with its notes, its sound controls update, and its sound is sent to the S-1. The play button also starts playback. A patch's key is estimated from its notes.</li>
@@ -257,18 +330,18 @@
       <li><b>To send several at once:</b> tick patches in the list, then click <b>Send to S-1</b>. Each patch gets a row with its own slot. They start on the next empty slots. To change one, select its row and click a slot, or use its list. The same patch can go to several slots with <b>Add to list</b>.</li>
       <li><b>To S-1</b> on a single patch opens Save to S-1 with that patch selected.</li>
       <li>When saving, hovering over a slot shows which library patch it holds, if its contents exactly match one.</li>
-      <li>Some settings have no MIDI control, like delay feedback or a drawn wave, so they won't be heard during live playback. They're kept in the file and work once a patch is on the S-1. Motions play live here too, as a close match. Step sub-divisions don't show or play here, but moving a patch to the S-1 keeps them.</li>
+      <li>Some settings have no MIDI control, like delay feedback or a drawn wave, so they won't be heard during live playback. They're kept in the file and work once a patch is on the S-1. Motions and sub-steps play live here too, as a close match.</li>
     </ul>
 
     <h3>Patterns and the S-1's own memory</h3>
     <ul>
-      <li>Patterns 1-16 here are stored in this browser, and clearing its data for the site erases them. <b>Export MIDI</b> keeps a copy as a file.</li>
+      <li>Patterns 1-16 here are stored in this browser, and clearing its data for the site erases them. <b>Back up</b> saves all 16, their patches and the sound to one file, and <b>Restore</b> loads it back. <b>Export MIDI</b> keeps one pattern's notes as a file, with sub-steps written as separate notes.</li>
       <li><b>Import MIDI</b> replaces the current pattern with the notes from a MIDI file, and <b>Undo</b> brings it back. All its tracks are merged, leaving out drums on channel 10 if there's anything else. It also sets the tempo and estimates the key. The pattern gets 1, 2, 4 or 8 bars, whichever fits, and anything past 8 bars is cut. A patch loaded into that pattern no longer applies, though the sound stays.</li>
       <li>Patterns play from this page, so the page must stay open.</li>
       <li><b>Save to S-1</b> writes a pattern and sound into the S-1's memory, using its USB backup and restore. It takes a restart of the S-1, and the button walks you through it. This isn't a method Roland documents, so keep a copy of the S-1's <b>BACKUP</b> folder.</li>
-      <li>A save holds up to 64 steps, 4 notes per step and values on 1/16 steps. Anything else is rounded or left out, and you're told first. Long notes are saved as tied steps. Settings shown as <b>?</b> stay as they are in the pattern's source. Pan and mod wheel aren't stored in patterns. A pattern loaded from the library keeps its motions, while other saves remove any motions in the slot being replaced. Library patches sent directly are copied exactly.</li>
+      <li>A save holds up to 64 steps, 4 notes per step and values on 1/16 steps. Anything else is rounded or left out, and you're told first. Long notes are saved as tied steps. Settings shown as <b>?</b> stay as they are in the pattern's source. Pan and mod wheel aren't stored in patterns. A pattern loaded from the library keeps its motions, and drawn knob movements are saved. Other saves remove any motions in the slot being replaced. Library patches sent directly are copied exactly.</li>
       <li><b>Record to S-1</b> plays a pattern once for the S-1 to record instead: select a pattern on the S-1, press REC, then PLAY, then click the button soon after. Timing depends on how it records, and this hasn't been confirmed on the hardware.</li>
-      <li><b>Sync</b> plays this page together with <a href="https://pzuzarte.github.io/mpc-grid/" target="_blank" rel="noopener">MPC Grid</a> when both are open in the same browser, each with its MIDI connected. Pressing Play or Stop on either one starts or stops both, from the start of their patterns, at the tempo of the page you pressed. Changing the BPM on either changes both. Patterns of different lengths each loop in their own time. Untick it on either page to play them separately.</li>
+      <li><b>Sync</b> plays this page together with <a href="https://pzuzarte.github.io/mpc-grid/" target="_blank" rel="noopener">MPC Grid</a> when both are open in the same browser, each with its MIDI connected. Pressing Play or Stop on either one starts or stops both, from the start of their patterns, at the tempo of the page you pressed. Changing the BPM on either changes both. Patterns of different lengths each loop in their own time. Untick it on either page to play them separately. The badge beside it shows whether the other page is connected.</li>
       <li><b>Send clock</b> starts the S-1's own sequencer as well, so you may hear both unless its pattern is empty.</li>
     </ul>
 
@@ -367,6 +440,7 @@
 <script src="prm.js"></script>
 <script src="params.js"></script>
 <script src="sync.js"></script>
+<script src="backup.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

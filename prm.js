@@ -11,6 +11,9 @@ const Prm = (() => {
   const STEP_LINES = 64;
   const MOTION_LINES = 512;
   const EXPECTED_LINES = 689;
+  const MOTION_TICKS = STEP_TICKS / 8;
+  const MOTION_LANES = 8;
+  const MAX_SUB_STEP = 13;
   const VOICES = 4;
   const FULL_GATE = 100;
   // A gate of 100 ties into the same note on the next step, so a separate note
@@ -137,6 +140,7 @@ const Prm = (() => {
   function buildSteps(notes, stepCount, warnings) {
     const steps = Array.from({ length: MAX_STEPS }, () => []);
     const starts = Array.from({ length: MAX_STEPS }, () => new Set());
+    const subSteps = Array.from({ length: MAX_STEPS }, () => new Set());
     const rounded = new Set();
     let past = 0;
     const placed = [];
@@ -149,6 +153,7 @@ const Prm = (() => {
       }
       placed.push({ ...item, step });
       starts[step].add(item.note);
+      subSteps[step].add(item.substep >= 1 && item.substep <= MAX_SUB_STEP ? item.substep : 0);
     }
     if (past) warnings.push(`${past} note(s) past step ${stepCount} were left out.`);
     if (rounded.size) warnings.push(`${rounded.size} note time(s) off the 1/16 grid were rounded, including any triplets or 1/32 notes.`);
@@ -180,6 +185,9 @@ const Prm = (() => {
     }
     if (dropped) warnings.push(`The S-1 holds 4 notes per step, so ${dropped} note(s) in crowded steps were left out.`);
 
+    if (subSteps.some((found) => found.size > 1)) {
+      warnings.push("The S-1 has one sub-step per step, so steps with mixed values use the first one set.");
+    }
     let mixed = 0;
     const lines = steps.map((voices, index) => {
       const parts = [];
@@ -194,16 +202,45 @@ const Prm = (() => {
       const chances = voices.map((voice) => Math.round(voice.probability / 10));
       if (new Set(chances).size > 1) mixed += 1;
       const probability = chances.length ? Math.max(...chances) : 10;
-      return `STEP_NOTE ${index + 1}\t= ${parts.join(" ")} SUBSTEP=0 PROB=${probability}`;
+      const subStep = [...subSteps[index]].find(Boolean) || 0;
+      return `STEP_NOTE ${index + 1}\t= ${parts.join(" ")} SUBSTEP=${subStep} PROB=${probability}`;
     });
     if (mixed) warnings.push(`The S-1 has one probability per step, so ${mixed} step(s) with mixed values use the highest.`);
     return lines;
   }
 
+  /* Turns drawn knob movements, as {time, cc, value}, into a file's motion rows. Each row
+     keeps its pitch bend if the pattern's own motions are being kept. */
+  function buildMotions(motions, stepCount, warnings) {
+    const lanes = [...new Set(motions.map((item) => item.cc))];
+    if (lanes.length > MOTION_LANES) {
+      warnings.push(`The S-1 records ${MOTION_LANES} knobs per pattern, so ${lanes.length - MOTION_LANES} were left out.`);
+    }
+    const kept = lanes.slice(0, MOTION_LANES);
+    const rows = new Map();
+    let past = 0;
+    for (const item of motions) {
+      const lane = kept.indexOf(item.cc);
+      if (lane < 0) continue;
+      const position = Math.round(item.time / MOTION_TICKS);
+      const step = Math.floor(position / 8);
+      if (step >= stepCount) {
+        past += 1;
+        continue;
+      }
+      const id = (step + 1) * 10 + (position % 8) + 1;
+      if (!rows.has(id)) rows.set(id, Array(MOTION_LANES).fill(-1));
+      rows.get(id)[lane] = Math.max(0, Math.min(127, Math.round(item.value)));
+    }
+    if (past) warnings.push(`${past} knob movement(s) past step ${stepCount} were left out.`);
+    return { lanes: kept, rows };
+  }
+
   /* Returns the new file's text and anything that couldn't transfer exactly. Motions
-     are cleared, as they belong to the pattern being replaced. */
+     are cleared, as they belong to the pattern being replaced, unless they're kept or
+     new ones are given. */
   function render(template, {
-    notes, bars, bpm, values = {}, keepMotions = false,
+    notes, bars, bpm, values = {}, keepMotions = false, motions = null,
   }) {
     const problems = validate(template);
     if (problems.length) throw new Error(`This pattern file ${summarise(problems)}.`);
@@ -218,14 +255,22 @@ const Prm = (() => {
       const setting = SETTINGS[cc];
       if (setting && value !== undefined && value !== null) changes.set(setting[0], setting[1](value));
     }
-    if (!keepMotions) {
-      for (let slot = 1; slot <= 8; slot += 1) changes.set(`MOTION_CC${slot}`, -1);
+    const drawn = motions ? buildMotions(motions, stepCount, warnings) : null;
+    if (!keepMotions || drawn) {
+      for (let slot = 1; slot <= MOTION_LANES; slot += 1) {
+        changes.set(`MOTION_CC${slot}`, drawn && drawn.lanes[slot - 1] !== undefined ? drawn.lanes[slot - 1] : -1);
+      }
     }
 
     const lines = template.split("\n").map((line) => {
       const step = /^STEP_NOTE (\d+)\t/.exec(line);
       if (step) return stepLines[Number(step[1]) - 1];
       const motion = /^STEP_MOTION (\d+)\t/.exec(line);
+      if (motion && drawn) {
+        const bend = keepMotions ? /PB=(-?\d+)/.exec(line)[1] : "-32768";
+        const row = drawn.rows.get(Number(motion[1])) || Array(MOTION_LANES).fill(-1);
+        return `STEP_MOTION ${motion[1]}\t= ${row.map((value, index) => `M${index + 1}=${value}`).join(" ")} PB=${bend}`;
+      }
       if (motion) return keepMotions ? line : `STEP_MOTION ${motion[1]}\t= ${EMPTY_MOTION}`;
       const key = line.split("\t", 1)[0];
       return changes.has(key) ? `${key}\t= ${changes.get(key)}` : line;
@@ -245,7 +290,10 @@ const Prm = (() => {
         const field = (name) => Number(new RegExp(`${name}${voice}=(-?\\d+)`).exec(body)[1]);
         if (field("NOTE") >= 0) voices.push({ note: field("NOTE"), velocity: field("VELO"), gate: field("LENG") });
       }
-      steps[Number(number) - 1] = { voices, probability: Number(/PROB=(\d+)/.exec(body)[1]) };
+      const subStep = /SUBSTEP=(\d+)/.exec(body);
+      steps[Number(number) - 1] = {
+        voices, probability: Number(/PROB=(\d+)/.exec(body)[1]), subStep: subStep ? Number(subStep[1]) : 0,
+      };
     }
     return steps;
   }
@@ -277,6 +325,7 @@ const Prm = (() => {
           continue;
         }
         const item = { time, note: voice.note, velocity: voice.velocity / 127, length, probability };
+        if (step.subStep) item.substep = step.subStep;
         notes.push(item);
         if (voice.gate === FULL_GATE) open.set(voice.note, { item, end: time + STEP_TICKS, tying: true });
       }
@@ -319,6 +368,13 @@ const Prm = (() => {
     return motions.sort((a, b) => a.time - b.time);
   }
 
+  // The same movements, grouped by controller as the grid keeps them.
+  function readLanes(text) {
+    const lanes = {};
+    for (const { time, cc, value } of readMotions(text)) (lanes[cc] ??= []).push({ time, value });
+    return lanes;
+  }
+
   function readBpm(text) {
     return (readSetting(text, "TEMPO") || 12000) / 100;
   }
@@ -342,6 +398,7 @@ const Prm = (() => {
     noteCount,
     readBars,
     readBpm,
+    readLanes,
     readMotions,
     readNotes,
     readSetting,

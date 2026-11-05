@@ -5,6 +5,60 @@ const path = require("node:path");
 const { test } = require("node:test");
 const Prm = require("../prm.js");
 
+const onePatternFile = () => {
+  const template = makeTemplate();
+  return Prm.render(template, {
+    notes: [{ time: 240, note: 60, velocity: 1, length: 240, probability: 100, substep: 9 }], bars: 1, bpm: 120,
+  });
+};
+
+test("sub-steps save to the S-1's file and read back", () => {
+  const { text, warnings } = onePatternFile();
+  assert.deepEqual(warnings, []);
+  assert.match(text, /^STEP_NOTE 2\t= .*SUBSTEP=9 PROB=10$/m);
+  assert.match(text, /^STEP_NOTE 1\t= .*SUBSTEP=0 PROB=10$/m);
+  assert.equal(Prm.readNotes(text)[0].substep, 9);
+  assert.equal(Prm.describe(text).substeps, 1);
+});
+
+test("mixed sub-steps in one step warn, as the S-1 has one per step", () => {
+  const { warnings } = Prm.render(makeTemplate(), {
+    notes: [
+      { time: 0, note: 60, velocity: 1, length: 240, substep: 2 },
+      { time: 0, note: 64, velocity: 1, length: 240 },
+    ],
+    bars: 1,
+    bpm: 120,
+  });
+  assert.ok(warnings.some((text) => text.includes("one sub-step per step")));
+});
+
+test("drawn knob movements save to the S-1's file and read back", () => {
+  const motions = [
+    { time: 0, cc: 74, value: 10 },
+    { time: 30, cc: 74, value: 20 },
+    { time: 270, cc: 71, value: 127 },
+  ];
+  const { text } = Prm.render(makeTemplate(), { notes: [], bars: 1, bpm: 120, motions });
+  assert.equal(Prm.validate(text).length, 0);
+  assert.equal(Prm.readSetting(text, "MOTION_CC1"), 74);
+  assert.equal(Prm.readSetting(text, "MOTION_CC2"), 71);
+  assert.equal(Prm.readSetting(text, "MOTION_CC3"), -1);
+  assert.match(text, /^STEP_MOTION 11\t= M1=10 M2=-1 M3=-1 M4=-1 M5=-1 M6=-1 M7=-1 M8=-1 PB=-32768$/m);
+  assert.match(text, /^STEP_MOTION 12\t= M1=20 /m);
+  assert.match(text, /^STEP_MOTION 22\t= M1=-1 M2=127 /m);
+  assert.deepEqual(Prm.readMotions(text), motions.map((item) => ({ ...item })));
+  assert.deepEqual(Prm.readLanes(text)[74], [{ time: 0, value: 10 }, { time: 30, value: 20 }]);
+});
+
+test("drawn knob movements warn when they don't fit on the S-1", () => {
+  const nine = Array.from({ length: 9 }, (_, index) => ({ time: 0, cc: 20 + index, value: 1 }));
+  const many = Prm.render(makeTemplate(), { notes: [], bars: 1, bpm: 120, motions: nine });
+  assert.ok(many.warnings.some((text) => text.includes("8 knobs")));
+  const late = Prm.render(makeTemplate(), { notes: [], bars: 1, bpm: 120, motions: [{ time: 3840, cc: 74, value: 1 }] });
+  assert.ok(late.warnings.some((text) => text.includes("past step 16")));
+});
+
 test("a suggested patch name avoids names in use, ignoring case", () => {
   assert.equal(Prm.uniqueName("S-1 1-01", []), "S-1 1-01");
   assert.equal(Prm.uniqueName("S-1 1-01", ["s-1 1-01"]), "S-1 1-01 (2)");
