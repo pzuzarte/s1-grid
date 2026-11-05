@@ -1629,7 +1629,7 @@ function renderLane() {
   // Where the knob sits outside the drawn movements.
   const resting = baseValue(state.laneCc);
   if (resting !== undefined) {
-    ctx.fillStyle = "#fff";
+    ctx.fillStyle = style.getPropertyValue("--strong");
     ctx.fillRect(0, height - (resting / 127) * height, width, 1);
   }
 }
@@ -2927,6 +2927,41 @@ function renderPatchName() {
   const source = state.sources[state.current];
   $("patch-name").hidden = !source;
   if (source) $("patch-name").textContent = `Patch: ${source.name}`;
+  $("revert-sound").disabled = !source;
+}
+
+// Every setting back to what the pattern's patch has saved. The sound before it stays a click away.
+function revertSound() {
+  const source = state.sources[state.current];
+  if (!source) {
+    setStatus("This pattern has no saved sound yet. Load a patch, or save it to the library first.", true);
+    return;
+  }
+  if (state.preview) stop();
+  state.varyOriginal = { ...state.values };
+  state.values = {};
+  state.delay = Prm.readDelay(source.text);
+  applySound(Prm.readValues(source.text));
+  state.varyLatest = { ...state.values };
+  renderVary(false);
+  renderLane();
+  saveSoon();
+  const sent = state.output ? "Hear original brings back the sound you had." : "No MIDI output, so it wasn't sent to the S-1.";
+  setStatus(`Back to the sound saved in "${source.name}". ${sent}`, !state.output);
+}
+
+const THEME_KEY = "s1-grid-theme";
+
+function setTheme(theme) {
+  if (theme === "light") document.documentElement.dataset.theme = "light";
+  else delete document.documentElement.dataset.theme;
+  $("theme-toggle").textContent = theme === "light" ? "Dark mode" : "Light mode";
+  try {
+    localStorage.setItem(THEME_KEY, theme);
+  } catch {
+    // Private windows can refuse storage, so the theme just isn't remembered.
+  }
+  renderLane();
 }
 
 // Sends a sound to the S-1 and shows it on the page. A short gap keeps a burst of
@@ -3192,6 +3227,9 @@ function bindControls() {
     if (file) restoreBackup(file);
   });
   $("vary-small").addEventListener("click", () => varySound(0.06));
+  $("revert-sound").addEventListener("click", revertSound);
+  $("theme-toggle").addEventListener("click", () => setTheme(document.documentElement.dataset.theme === "light" ? "dark" : "light"));
+  $("theme-toggle").textContent = document.documentElement.dataset.theme === "light" ? "Dark mode" : "Light mode";
   $("vary-big").addEventListener("click", () => varySound(0.25));
   $("vary-compare").addEventListener("click", compareVary);
   $("library-favourites").addEventListener("change", (event) => {

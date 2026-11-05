@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>S-1 Grid</title>
 <link rel="stylesheet" href="style.css">
+<script>
+  // Set before the page draws, so it doesn't flash the other theme.
+  try { if (localStorage.getItem("s1-grid-theme") === "light") document.documentElement.dataset.theme = "light"; } catch {}
+</script>
 <!-- Counts visits anonymously. A fixed version with a checksum, and the tool works if it's blocked. -->
 <script data-goatcounter="https://pzuzarte.goatcounter.com/count"
         async src="https://gc.zgo.at/count.v5.js"
@@ -27,6 +31,7 @@
   <div class="spacer"></div>
   <span id="midi-state" class="pill">MIDI: starting</span>
   <button id="midi-retry" type="button" hidden>Allow MIDI</button>
+  <button id="theme-toggle" type="button" title="Switch between dark and light mode">Light mode</button>
   <button id="help-open" type="button" title="Help (press ?)">Help</button>
 </header>
 
@@ -194,6 +199,7 @@
         <button id="vary-big" type="button" title="Nudge the sound's levels a lot">A lot</button>
         <button id="vary-compare" type="button" aria-pressed="false" disabled>Hear original</button>
       </div>
+      <button id="revert-sound" type="button" title="Returns every setting here to what's saved in this pattern's patch" disabled>Back to saved sound</button>
       <div class="library-save">
         <input id="library-name" type="text" maxlength="60" placeholder="Patch name" aria-label="Patch name" spellcheck="false">
         <button id="library-save" class="primary" type="button" title="Saves the current pattern and sound as a patch in your library folder">Save to library</button>
@@ -320,6 +326,7 @@
 
     <h3>Sound controls</h3>
     <ul>
+      <li><b>Back to saved sound</b> returns every setting to what's saved in the pattern's patch, after trying changes. <b>Hear original</b> brings back the sound you had. <b>Light mode</b> at the top switches the page's colours, and it's remembered.</li>
       <li><b>Vary</b> nudges the sound's levels a little or a lot, leaving tuning, pan and switches alone. <b>Hear original</b> flips between the sound before you started and the new one.</li>
       <li>The panel on the right has every control the S-1 accepts over MIDI, grouped into tabs. Changes are immediate, even during playback.</li>
       <li>The sound stays the same when you switch patterns. Only loading a patch or a saved sound changes it, and saving a pattern saves the sound as it is then.</li>
