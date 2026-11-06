@@ -34,17 +34,19 @@
   --muted: #565d6a;
   --cell: #e3e5ea;
   --cell-beat: #d3d7de;
-  --accent: #f07a10;
-  --accent-text: #15171c;
+  --accent: #2f6fdb;
+  --accent-text: #ffffff;
+  --on: 47, 111, 219;
+  --root-row: 47, 111, 219;
   --ok: #1d8a56;
   --warn: #9a6200;
   --error: #c0392b;
   --strong: #1b1e24;
   --faint: #8d939e;
   --cell-hover: #bfc4cc;
-  --pattern-fill: #fbd9b4;
-  --root-cell: #f5dfc9;
-  --root-cell-beat: #ebcfb3;
+  --pattern-fill: #d4e2fa;
+  --root-cell: #dce6f7;
+  --root-cell-beat: #cdd9ef;
 }
 
 * { box-sizing: border-box; }
