@@ -85,9 +85,10 @@
     <span id="draw-label" class="group-label">Draw</span>
     <div id="chords" class="segmented"></div>
   </div>
-  <label title="How long a clicked step lasts. Drag from an empty step to draw any length.">Length
+  <label title="How long a clicked or recorded note lasts. Off records each note as long as you hold the key, and clicked steps last one step. Drag from an empty step to draw any length.">Length
     <select id="new-length">
-      <option value="step" selected>1 step</option>
+      <option value="off" selected>Off (as held)</option>
+      <option value="step">1 step</option>
       <option value="beat">1 beat</option>
       <option value="bar">1 bar</option>
     </select>
@@ -305,7 +306,7 @@
     <h3>Mouse and keyboard</h3>
     <table>
       <tbody>
-        <tr><th scope="row">Click a step</th><td>Add or remove it, as long as you don't drag. New steps use the <b>Length</b> setting.</td></tr>
+        <tr><th scope="row">Click a step</th><td>Add or remove it, as long as you don't drag. New steps use the <b>Length</b> setting, or one step when it's Off.</td></tr>
         <tr><th scope="row">Drag from an empty step</th><td>Draw one note as long as you drag. It snaps to the grid, or hold <kbd>Alt</kbd> for single ticks.</td></tr>
         <tr><th scope="row">Drag a note</th><td>Change where it ends, longer or shorter, from anywhere on its first step or its end marker. It moves in eighths of a step, or hold <kbd>Alt</kbd> for single ticks.</td></tr>
         <tr><th scope="row"><kbd>Cmd</kbd>-drag across steps</th><td>Fill separate steps. Dragging from a filled step removes steps instead.</td></tr>
@@ -323,7 +324,7 @@
     <ul>
       <li><b>Sub-step</b>, when you right-click a step, plays it in quick repeats using the S-1's 14 patterns, where <b>o</b> plays and <b>-</b> is silent. They play here, save to the S-1, and show on the note.</li>
       <li><b>Chain</b> takes pattern numbers such as <b>1 1 2 3</b>. Tick <b>On</b> and Play goes through them in order, looping. Clicking a pattern during playback plays it next, then the chain carries on.</li>
-      <li><b>Rec</b> records notes from the input and channel chosen beside it: the S-1's keys, another keyboard, or any input on any channel. While playing, notes land on the nearest step and last exactly as long as you hold them, not rounded to whole steps, and each time round the loop adds to what's there. While stopped, each key adds a note and moves on a step, starting from the chosen step. Undo takes back the whole take.</li>
+      <li><b>Rec</b> records notes from the input and channel chosen beside it: the S-1's keys, another keyboard, or any input on any channel. While playing, notes land on the nearest step and last as long as you hold them, or the length chosen in <b>Length</b> if it isn't Off, and each time round the loop adds to what's there. While stopped, each key adds a note and moves on a step, starting from the chosen step. Undo takes back the whole take.</li>
       <li><b>Click</b> plays a metronome click on each beat while the pattern plays, louder on the first beat of each bar. It comes from this computer's speakers, not the instrument, and stays on or off for next time.</li>
       <li>While recording, notes from another keyboard are passed on to the S-1, so you hear them. If MIDI Hub is also routing that keyboard to the S-1, you'll hear each note twice, so choose one.</li>
     </ul>

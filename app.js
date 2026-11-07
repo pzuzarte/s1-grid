@@ -29,7 +29,7 @@ const state = {
   bpm: 120,
   channel: DEFAULT_CHANNEL,
   chord: "note",
-  newLength: "step",
+  newLength: "off",
   lowOctave: 3,
   span: 2,
   showAll: false,
@@ -652,7 +652,7 @@ function setBars(bars) {
 }
 
 function newNoteLength(time) {
-  const lengths = { step: state.resolution, beat: PPQ, bar: BAR };
+  const lengths = { off: state.resolution, step: state.resolution, beat: PPQ, bar: BAR };
   return Math.min(lengths[state.newLength], lengthPulses() - time);
 }
 
@@ -1472,6 +1472,8 @@ function setUpRecorder() {
   recorder = Recorder.create({
     notes,
     makeNote: (fields) => ({ ...fields, probability: 100 }),
+    // Off keeps each note as long as it was held.
+    fixedLength: (time) => (state.newLength === "off" ? null : newNoteLength(time)),
     resolution: () => state.resolution,
     length: () => lengthPulses(),
     playing: () => state.playing,
