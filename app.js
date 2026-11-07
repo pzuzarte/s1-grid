@@ -1458,6 +1458,7 @@ function followProgram(program) {
 /* ---------- Recording ---------- */
 
 let recorder = null;
+let click = null;
 
 function moveRecordCursor(time) {
   if (time < state.windowStart || time >= state.windowStart + state.windowSpan) {
@@ -1467,6 +1468,7 @@ function moveRecordCursor(time) {
 }
 
 function setUpRecorder() {
+  click = Recorder.createClick({ storageKey: "s1-grid-click", button: $("click") });
   recorder = Recorder.create({
     notes,
     makeNote: (fields) => ({ ...fields, probability: 100 }),
@@ -1547,6 +1549,7 @@ function schedule() {
     if (sendingClock() && from % CLOCK_PULSES === 0 && state.output) {
       state.output.send([0xF8], state.nextTime);
     }
+    if (from % PPQ === 0 && !state.sendOnce) click.at(state.nextTime, from % (4 * PPQ) === 0);
     if (!state.sendOnce) scheduleMotions(from, to, ms);
     for (const note of playing.notes) {
       if (note.time >= from && note.time < to && Math.random() * 100 < (note.probability ?? 100)) {
