@@ -1294,6 +1294,11 @@ function refreshPorts() {
 // Knobs moved on the S-1 update the matching controls here, and keys can be recorded.
 function handleMidiInput(event) {
   const [status, first, second] = event.data;
+  // The S-1 sends its pattern changes on channel 16, whatever its note channel.
+  if ((status & 0xF0) === 0xC0) {
+    followProgram(first);
+    return;
+  }
   if ((status & 0x0F) !== state.channel) return;
   const kind = status & 0xF0;
   const at = event.timeStamp || performance.now();
@@ -1309,6 +1314,154 @@ function handleMidiInput(event) {
     if (syncIsOff) renderParams();
     else updateParamControl(first);
   }
+}
+
+/* ---------- Following the S-1's pattern changes ---------- */
+
+/* The S-1 can't report its sound, but it sends a program change when its pattern changes.
+   A copy of its 64 saved patterns, from its BACKUP folder, fills in the controls. The copy
+   is kept in this browser, and updated whenever the page reads or writes the S-1 drive. */
+const FOLLOW_KEY = "follow-sounds";
+const FOLLOW_ON_KEY = "s1-grid-follow";
+const follow = { on: false, slots: null, from: "", when: 0, slot: null };
+
+// The pattern files' texts by slot, or null for any that are missing or unreadable.
+function slotTexts(bytesOf) {
+  const decode = new TextDecoder("ascii");
+  return Array.from({ length: S1_DRIVE_FILES }, (_, slot) => {
+    const bytes = bytesOf(slot);
+    if (!bytes) return null;
+    const text = decode.decode(bytes);
+    return Prm.validate(text).length ? null : text;
+  });
+}
+
+async function loadFollowSounds() {
+  try {
+    follow.on = localStorage.getItem(FOLLOW_ON_KEY) === "on";
+  } catch {
+    // Private windows can refuse storage, so following starts off.
+  }
+  try {
+    const saved = await storeHandle((store) => store.get(FOLLOW_KEY), "readonly");
+    if (saved && saved.slots && saved.slots.length === S1_DRIVE_FILES) Object.assign(follow, saved);
+  } catch {
+    // Without a saved copy, Follow S-1 asks for a backup.
+  }
+  renderFollow();
+}
+
+async function keepFollowSounds(slots, from) {
+  if (!slots.some(Boolean)) return;
+  Object.assign(follow, { slots, from, when: Date.now() });
+  try {
+    await storeHandle((store) => store.put({ slots, from, when: follow.when }, FOLLOW_KEY), "readwrite");
+  } catch {
+    // It still works until the page is reloaded.
+  }
+  renderFollow();
+}
+
+function renderFollow() {
+  $("follow-s1").setAttribute("aria-pressed", String(follow.on));
+  const pill = $("follow-state");
+  pill.hidden = !follow.on;
+  if (!follow.slots) pill.textContent = "No S-1 backup yet";
+  else pill.textContent = follow.slot === null ? "Waiting for the S-1" : `S-1 pattern ${Prm.slotLabel(follow.slot)}`;
+  pill.title = follow.slots ? `Sounds from ${follow.from}, ${new Date(follow.when).toLocaleString()}` : "";
+}
+
+function setFollow(on) {
+  follow.on = on;
+  try {
+    localStorage.setItem(FOLLOW_ON_KEY, on ? "on" : "off");
+  } catch {
+    // It's just not remembered.
+  }
+  renderFollow();
+}
+
+async function toggleFollow() {
+  if (follow.on) {
+    setFollow(false);
+    setStatus("No longer following the S-1's pattern changes.");
+    return;
+  }
+  if (!follow.slots) {
+    await chooseFollowBackup();
+    return;
+  }
+  setFollow(true);
+  setStatus(`Following the S-1. Change pattern on it to see its sound here. Its sounds are from ${follow.from}.`);
+}
+
+// A copy of the BACKUP folder, or the S-1 drive itself.
+async function chooseFollowBackup() {
+  let folder;
+  try {
+    folder = await window.showDirectoryPicker({ id: "s1-import", mode: "read" });
+  } catch (error) {
+    if (error.name !== "AbortError") setStatus(`Couldn't open that folder: ${error.message}`, true);
+    return;
+  }
+  try {
+    let source = folder;
+    try {
+      source = await folder.getDirectoryHandle("BACKUP");
+    } catch (error) {
+      if (error.name !== "NotFoundError") throw error;
+    }
+    const files = [];
+    for (let slot = 0; slot < S1_DRIVE_FILES; slot += 1) {
+      try {
+        files.push(new Uint8Array(await (await (await source.getFileHandle(Prm.fileName(slot))).getFile()).arrayBuffer()));
+      } catch (error) {
+        if (error.name !== "NotFoundError") throw error;
+        files.push(null);
+      }
+    }
+    const slots = slotTexts((slot) => files[slot]);
+    const count = slots.filter(Boolean).length;
+    if (!count) {
+      setStatus("That doesn't look like an S-1 backup. Choose the S-1 drive, or a BACKUP folder with its pattern files.", true);
+      return;
+    }
+    await keepFollowSounds(slots, `the folder "${folder.name}"`);
+    setFollow(true);
+    setStatus(`Read ${count} of the S-1's 64 patterns. Change pattern on the S-1 to see its sound here.`);
+  } catch (error) {
+    setStatus(`Couldn't read that backup: ${error.message}`, true);
+  }
+}
+
+// Shows the sound saved in the S-1's new pattern. It's already playing on the S-1, so
+// nothing is sent back.
+function followProgram(program) {
+  if (!follow.on || program >= S1_DRIVE_FILES) return;
+  follow.slot = program;
+  renderFollow();
+  const label = Prm.slotLabel(program);
+  const text = follow.slots && follow.slots[program];
+  if (!text) {
+    setStatus(follow.slots
+      ? `The S-1 is on pattern ${label}, but the copy of its sounds doesn't have it. Choose a newer backup.`
+      : "Follow S-1 needs a copy of the S-1's sounds. Click S-1 backup and choose its BACKUP folder.", true);
+    return;
+  }
+  resetVary();
+  const values = Prm.readValues(text);
+  state.delay = Prm.readDelay(text);
+  if (state.preview) {
+    // The sound comes back when the preview ends, so that's where it goes.
+    state.preview.before = values;
+  } else {
+    state.values = { ...values };
+    renderParams();
+  }
+  saveSoon();
+  const match = library.items.find((item) => item.text === text);
+  const name = match ? `, the same as "${match.name}" in the library` : "";
+  setStatus(`S-1 pattern ${label}: showing its saved sound${name}. Changes made on the S-1 since the backup show once you move those knobs.`);
 }
 
 /* ---------- Recording from the S-1's keys ---------- */
@@ -2052,6 +2205,7 @@ async function useS1Drive(folder) {
       files.set(name, new Uint8Array(await file.arrayBuffer()));
     }
     Object.assign(saveState, { backup, restore, files });
+    await keepFollowSounds(slotTexts((slot) => files.get(Prm.fileName(slot))), "the S-1 drive");
   } catch (error) {
     if (error.name === "NotFoundError") {
       showSaveError("That doesn't look like the S-1 drive. It should contain BACKUP and RESTORE folders, with all 64 pattern files.");
@@ -2308,6 +2462,11 @@ async function writeToS1() {
     for await (const name of saveState.restore.keys()) {
       if (name.startsWith("._")) await saveState.restore.removeEntry(name);
     }
+    // What the S-1 will hold once it restores, for Follow S-1.
+    await keepFollowSounds(slotTexts((slot) => {
+      const name = Prm.fileName(slot);
+      return replaced.get(name) || saveState.files.get(name);
+    }), "the last Save to S-1");
     const labels = [...saveState.assignments.keys()].sort((a, b) => a - b).map(Prm.slotLabel).join(", ");
     $("save-done-title").textContent = `Ready for ${labels}. Finish on the S-1:`;
     showSaveStep("done");
@@ -2780,6 +2939,7 @@ async function readImportSlots(folder) {
       showImportError("That doesn't look like the S-1 drive. It should contain a BACKUP folder with the S-1's pattern files.");
       return;
     }
+    await keepFollowSounds(slotTexts((slot) => slots[slot] && slots[slot].bytes), `the folder "${folder.name}"`);
     importState.slots = slots;
     importState.names = new Map();
     showImportSection("import-pick");
@@ -3163,6 +3323,8 @@ function bindControls() {
     saveState.active = 0;
     renderSaveSlots();
   });
+  $("follow-s1").addEventListener("click", toggleFollow);
+  $("follow-backup").addEventListener("click", chooseFollowBackup);
   $("library-folder").addEventListener("click", () => {
     if (library.status === "ready") library.status = "none";
     chooseLibraryFolder().finally(renderLibrary);
@@ -3318,6 +3480,7 @@ async function start() {
   renderLibrary();
   setStatus("Choose a key, then click or drag on the grid to add notes.");
   await initMidi();
+  await loadFollowSounds();
   if (window.showDirectoryPicker) await restoreLibrary();
 }
 

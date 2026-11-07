@@ -40,6 +40,11 @@
   <div id="slots" class="slots"></div>
   <span id="patch-name" class="pill" hidden></span>
   <div class="spacer"></div>
+  <div class="button-pair">
+    <button id="follow-s1" class="toggle" type="button" aria-pressed="false" title="When you change pattern on the S-1, show that pattern's saved sound in the controls">Follow S-1</button>
+    <button id="follow-backup" type="button" title="Choose the S-1 drive, or a copy of its BACKUP folder, for Follow S-1 to read the sounds from">S-1 backup</button>
+  </div>
+  <span id="follow-state" class="pill" hidden></span>
   <label title="Choosing an idea also sets the sound to a starting point for it">Idea
     <select id="generator"></select>
   </label>
@@ -333,6 +338,8 @@
       <li>Turning a knob on the S-1 updates the matching control here. A value shown as <b>?</b> hasn't been set or received yet, because the S-1 can't report its settings when asked. <b>Init</b> or loading a patch fills them in.</li>
       <li><b>Save to library</b>, below the controls, saves the current pattern and sound together as a patch in your library folder. Values shown as <b>?</b> keep the value from the patch you loaded, or otherwise the blank patch's.</li>
       <li>The drawn wave's shape, and settings with no MIDI control, can only be changed on the S-1.</li>
+      <li><b>Follow S-1</b> shows the sound of whichever pattern you choose on the S-1. The S-1 can't send its settings, so the page reads them from a copy of its <b>BACKUP</b> folder: click <b>S-1 backup</b> and choose the S-1 drive or a saved copy. Opening the S-1 drive for Import from S-1 or Save to S-1 updates the copy too. Nothing is sent back to the S-1, and the grid doesn't change.</li>
+      <li>The copy is only as new as the last backup. Edits made on the S-1 since then show once you move those knobs, so take a new backup after writing patterns on the S-1.</li>
     </ul>
 
     <h3>Patch library</h3>
