@@ -55,11 +55,6 @@ const state = {
   selection: null,
   selecting: null,
   clipboard: null,
-  recording: false,
-  recStep: 0,
-  recLast: 0,
-  recOpen: new Map(),
-  recent: [],
   preview: null,
   varyOriginal: null,
   varyLatest: null,
@@ -1283,16 +1278,17 @@ function refreshPorts() {
   else if (state.output) setMidiPill(`MIDI: ${state.output.name}`);
   else setMidiPill("S-1 not found. Connect it and turn it on.", "warn");
 
-  const input = [...state.midi.inputs.values()].find(isS1) || null;
-  if (input !== state.input) {
-    if (state.input) state.input.onmidimessage = null;
-    state.input = input;
-    if (input) input.onmidimessage = handleMidiInput;
-  }
+  // Every input is heard, for recording from any keyboard. Knobs and pattern changes come from the S-1.
+  const inputs = [...state.midi.inputs.values()];
+  state.input = inputs.find(isS1) || null;
+  for (const port of inputs) port.onmidimessage = (event) => handleMidiInput(event, port);
+  recorder.refresh(state.midi);
 }
 
-// Knobs moved on the S-1 update the matching controls here, and keys can be recorded.
-function handleMidiInput(event) {
+// Notes from the chosen input are recorded. Knobs moved on the S-1 update the controls here.
+function handleMidiInput(event, port) {
+  if (!state.preview && recorder.message(event, port)) return;
+  if (port !== state.input) return;
   const [status, first, second] = event.data;
   // The S-1 sends its pattern changes on channel 16, whatever its note channel.
   if ((status & 0xF0) === 0xC0) {
@@ -1301,12 +1297,7 @@ function handleMidiInput(event) {
   }
   if ((status & 0x0F) !== state.channel) return;
   const kind = status & 0xF0;
-  const at = event.timeStamp || performance.now();
-  if (kind === 0x90 && second > 0) {
-    recordNoteOn(first, second, at);
-  } else if (kind === 0x80 || kind === 0x90) {
-    recordNoteOff(first, at);
-  } else if (kind === 0xB0 && S1Params.BY_CC.has(first)) {
+  if (kind === 0xB0 && S1Params.BY_CC.has(first)) {
     // Past the last note value, the S-1 can only be sending a time, so its sync is off.
     const syncIsOff = first === DELAY_CC && second > DELAY_LAST_NOTE && state.delay.sync === 1;
     if (syncIsOff) state.delay.sync = 0;
@@ -1464,98 +1455,54 @@ function followProgram(program) {
   setStatus(`S-1 pattern ${label}: showing its saved sound${name}. Changes made on the S-1 since the backup show once you move those knobs.`);
 }
 
-/* ---------- Recording from the S-1's keys ---------- */
+/* ---------- Recording ---------- */
 
-const ECHO_WINDOW_MS = 40; // A note this close to one we sent is the S-1 echoing it.
-const CHORD_WINDOW_MS = 80; // Keys this close together count as one chord in step entry.
-
-function toggleRecording() {
-  if (state.recording) {
-    state.recording = false;
-    state.recOpen.clear();
-    $("record").setAttribute("aria-pressed", "false");
-    setStatus("Stopped recording.");
-    return;
-  }
-  if (!state.input) {
-    setStatus("No S-1 found to record from. Connect it and turn it on.", true);
-    return;
-  }
-  closeNoteEditor({ restoreFocus: false });
-  remember();
-  renderChrome();
-  state.recording = true;
-  state.recLast = 0;
-  state.recStep = state.selection ? state.selection.start : 0;
-  $("record").setAttribute("aria-pressed", "true");
-  if (state.playing) {
-    setStatus("Recording. Play the S-1's keys, and notes land on the nearest step. Undo takes it all back.");
-  } else {
-    moveRecordCursor(state.recStep);
-    setStatus("Step recording. Each key adds a note and moves on a step. Press Play to record in time instead.");
-  }
-}
+let recorder = null;
 
 function moveRecordCursor(time) {
-  state.recStep = time;
   if (time < state.windowStart || time >= state.windowStart + state.windowSpan) {
     goToPage(Math.floor(time / (state.pageBars * BAR)));
   }
   selectSteps(time, time);
 }
 
-function nearestStep(pulse) {
-  return (Math.round(pulse / state.resolution) * state.resolution) % lengthPulses();
-}
-
-function recordNoteOn(note, velocity, at) {
-  if (!state.recording || state.preview) return;
-  if (state.recent.some((sent) => sent.note === note && Math.abs(sent.at - at) < ECHO_WINDOW_MS)) return;
-  let time;
-  if (state.playing) {
-    time = nearestStep(pulseAt(at));
-  } else {
-    const chord = at - state.recLast < CHORD_WINDOW_MS;
-    if (!chord && state.recLast) {
-      moveRecordCursor((state.recStep + state.resolution) % lengthPulses());
-    }
-    time = state.recStep;
-    state.recLast = at;
-  }
-  const existing = notes().find((n) => n.note === note && n.time === time);
-  const item = existing || { time, note, velocity: velocity / 127, length: state.resolution, probability: 100 };
-  if (!existing) {
-    notes().push(item);
-    notes().sort((a, b) => a.time - b.time || a.note - b.note);
-  }
-  state.recOpen.set(note, { item, pulse: state.playing ? pulseAt(at) : null });
-  if (needsRowsFor([item])) renderGrid();
-  else repaintFor([item]);
-  renderChrome();
-  saveSoon();
-}
-
-// How long a key was held sets the note's length, when recording in time.
-function recordNoteOff(note, at) {
-  const open = state.recOpen.get(note);
-  if (!open) return;
-  state.recOpen.delete(note);
-  if (!state.playing || open.pulse === null) return;
-  const length = lengthPulses();
-  const held = ((pulseAt(at) - open.pulse) % length + length) % length;
-  const steps = Math.max(1, Math.round(held / state.resolution));
-  open.item.length = Math.min(steps * state.resolution, length - open.item.time);
-  renderNoteBars();
-  saveSoon();
+function setUpRecorder() {
+  recorder = Recorder.create({
+    notes,
+    makeNote: (fields) => ({ ...fields, probability: 100 }),
+    resolution: () => state.resolution,
+    length: () => lengthPulses(),
+    playing: () => state.playing,
+    pulseAt,
+    startStep: () => (state.selection ? state.selection.start : 0),
+    moveCursor: moveRecordCursor,
+    begin: () => {
+      closeNoteEditor({ restoreFocus: false });
+      remember();
+      renderChrome();
+    },
+    added: (item) => {
+      if (needsRowsFor([item])) renderGrid();
+      else repaintFor([item]);
+      renderChrome();
+      saveSoon();
+    },
+    lengthened: () => {
+      renderNoteBars();
+      saveSoon();
+    },
+    status: setStatus,
+    thru: ([status, note, velocity]) => {
+      if (state.output) state.output.send([status | state.channel, note, velocity]);
+    },
+    isInstrument: isS1,
+  }, { storageKey: "s1-grid-record-input", button: $("record"), input: $("record-input"), channel: $("record-channel") });
 }
 
 function sendNote(note, velocity, atTime, lengthMs) {
   if (!state.output) return;
   const value = Math.max(1, Math.min(127, Math.round(velocity * 127)));
-  if (state.recording) {
-    state.recent.push({ note, at: atTime });
-    if (state.recent.length > 64) state.recent.shift();
-  }
+  recorder.sent(note, atTime);
   try {
     state.output.send([0x90 | state.channel, note, value], atTime);
     state.output.send([0x80 | state.channel, note, 0], atTime + lengthMs);
@@ -3375,7 +3322,7 @@ function bindControls() {
   $("copy").addEventListener("click", copySelection);
   $("paste").addEventListener("click", pasteClipboard);
   $("velocity-set").addEventListener("click", setBulkVelocity);
-  $("record").addEventListener("click", toggleRecording);
+  setUpRecorder();
   $("chain").addEventListener("change", (event) => setChain(event.target.value));
   $("chain-on").addEventListener("change", (event) => {
     state.chainOn = event.target.checked;
