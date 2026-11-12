@@ -338,7 +338,7 @@ test("motions are read with their controller and time, and can be kept when savi
 });
 
 // Read-only checks against a real backup, which isn't part of the repository.
-const BACKUP = path.join(process.env.HOME || "", "Desktop/s1-backups/BACKUP-2026-11-04");
+const BACKUP = path.join(__dirname, "../../s1-backups/BACKUP-2026-11-04");
 const realFiles = fs.existsSync(BACKUP) ? fs.readdirSync(BACKUP).filter((n) => n.endsWith(".PRM")) : [];
 
 test("every real pattern file passes validation, and only intended lines change", { skip: !realFiles.length }, () => {
