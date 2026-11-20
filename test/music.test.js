@@ -202,3 +202,11 @@ test("a pattern's key is detected from its notes", () => {
   assert.deepEqual(Music.detectKey(notes([60, 64, 67, 60, 65, 69, 67, 71, 72, 60])), { root: 0, scale: "major" });
   assert.equal(Music.detectKey([]), null);
 });
+
+test("turning the key on snaps notes to the nearest in the key, keeping the root", () => {
+  const chromatic = Array.from({ length: 13 }, (_, index) => ({ note: 60 + index, time: index * 240, length: 240 }));
+  const snapped = Music.mapNotes(chromatic, 9, "chromatic", 9, "minor");
+  assert.deepEqual(snapped.map((item) => item.note), [60, 60, 62, 62, 64, 65, 65, 67, 67, 69, 69, 71, 72]);
+  assert.ok(snapped.every((item) => Music.inKey(item.note, 9, "minor")));
+  assert.deepEqual(snapped.map((item) => item.time), chromatic.map((item) => item.time));
+});

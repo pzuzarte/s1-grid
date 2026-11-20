@@ -33,6 +33,7 @@ const state = {
   lowOctave: 3,
   span: 2,
   showAll: false,
+  keyOff: false, // No key: every note shows, and nothing is marked as in or out of it.
   baseResolution: 240,
   triplets: false,
   resolution: 240,
@@ -90,7 +91,7 @@ function saveSoon() {
   state.saveTimer = window.setTimeout(() => {
     const saved = {};
     for (const key of ["root", "scale", "moveNotes", "slots", "current", "bpm", "channel", "chord",
-      "newLength", "lowOctave", "span", "showAll", "baseResolution", "triplets", "tab", "sounds", "sources",
+      "newLength", "lowOctave", "span", "showAll", "keyOff", "baseResolution", "triplets", "tab", "sounds", "sources",
       "chain", "chainOn", "showLane", "laneCc", "delay"]) {
       saved[key] = state[key];
     }
@@ -119,7 +120,38 @@ function restore() {
 
 /* ---------- Key ---------- */
 
+// The key the grid and its tools follow. With the key off, that's every note.
+const keyRoot = () => (state.keyOff ? 0 : state.root);
+const keyScale = () => (state.keyOff ? "chromatic" : state.scale);
+const currentKeyName = () => `${Music.NOTE_NAMES[state.root]} ${Music.SCALES[state.scale].name.toLowerCase()}`;
+
+// Turns the key off or back on. Notes stay where they are either way.
+function setKeyOff(off) {
+  if (off === state.keyOff) return;
+  closeNoteEditor({ restoreFocus: false });
+  state.keyOff = off;
+  renderAll();
+  saveSoon();
+  setStatus(off ? "Key off. The grid shows every note, and notes stay where they are." : `Key: ${currentKeyName()}. Notes weren't moved.`);
+}
+
 function setKey(root, scale) {
+  if (state.keyOff) {
+    // Turning the key on snaps each note to the nearest one in the key, without moving
+    // the pattern to another root, so imported notes fall into place.
+    closeNoteEditor({ restoreFocus: false });
+    remember();
+    if (state.moveNotes) {
+      for (const item of state.slots) item.notes = Music.mapNotes(item.notes, root, "chromatic", root, scale);
+    }
+    state.root = root;
+    state.scale = scale;
+    state.keyOff = false;
+    renderAll();
+    saveSoon();
+    setStatus(state.moveNotes ? `Key: ${currentKeyName()}. Notes moved to the nearest notes in the key.` : `Key: ${currentKeyName()}. Notes weren't moved.`);
+    return;
+  }
   if (root === state.root && scale === state.scale) return;
   closeNoteEditor({ restoreFocus: false });
   remember();
@@ -137,23 +169,33 @@ function setKey(root, scale) {
 }
 
 function renderKey() {
-  $("roots").replaceChildren(...Music.NOTE_NAMES.map((name, index) => {
+  const off = document.createElement("button");
+  off.type = "button";
+  off.textContent = "Off";
+  off.title = "No key: the grid shows every note, and nothing is marked as in or out of a key";
+  off.setAttribute("aria-pressed", String(state.keyOff));
+  off.addEventListener("click", () => setKeyOff(true));
+  $("roots").replaceChildren(off, ...Music.NOTE_NAMES.map((name, index) => {
     const button = document.createElement("button");
     button.type = "button";
     button.textContent = name;
-    button.setAttribute("aria-pressed", String(index === state.root));
+    button.setAttribute("aria-pressed", String(!state.keyOff && index === state.root));
     button.addEventListener("click", () => setKey(index, state.scale));
     return button;
   }));
-  $("scale").value = state.scale;
+  $("scale").value = state.keyOff ? "off" : state.scale;
   $("move-notes").checked = state.moveNotes;
+  $("generate").disabled = state.keyOff;
+  $("generate").title = state.keyOff
+    ? "Choose a key to generate a pattern, as ideas are written in a key"
+    : "Replaces this pattern with a new one in the key. Undo brings the old one back.";
 }
 
 // Rows from high to low. Notes already in the pattern are never hidden.
 function rowNotes() {
   const low = lowNote();
   const high = low + state.span * 12;
-  const rows = new Set(state.showAll
+  const rows = new Set(state.showAll || state.keyOff
     ? Array.from({ length: high - low + 1 }, (_, i) => low + i)
     : Music.notesInKey(state.root, state.scale, low, high));
   for (const item of notes()) rows.add(item.note);
@@ -218,6 +260,10 @@ function duplicatePattern() {
 }
 
 function generatePattern() {
+  if (state.keyOff) {
+    setStatus("Choose a key first. Ideas are written in a key.", true);
+    return;
+  }
   remember();
   const kind = $("generator").value;
   const low = kind === "bassline" ? lowNote() : lowNote() + 12;
@@ -261,7 +307,7 @@ function shiftInScale(steps) {
     setStatus("This pattern has no notes to move.", true);
     return;
   }
-  const moved = Music.shiftInScale(notes(), steps, state.root, state.scale);
+  const moved = Music.shiftInScale(notes(), steps, keyRoot(), keyScale());
   if (!moved) {
     setStatus("Can't move further, as the notes would go past the MIDI range.", true);
     return;
@@ -385,7 +431,7 @@ function setBulkVelocity() {
 function remember() {
   // Patch sources are large and never edited in place, so they're shared, not copied.
   state.undo.push({
-    json: JSON.stringify({ root: state.root, scale: state.scale, slots: state.slots, current: state.current, bpm: state.bpm }),
+    json: JSON.stringify({ root: state.root, scale: state.scale, keyOff: state.keyOff, slots: state.slots, current: state.current, bpm: state.bpm }),
     sources: [...state.sources],
   });
   if (state.undo.length > 100) state.undo.shift();
@@ -476,13 +522,13 @@ function renderGrid() {
   }
 
   for (const note of rows) {
-    const isRoot = (note - state.root) % 12 === 0;
+    const isRoot = !state.keyOff && (note - state.root) % 12 === 0;
     const label = document.createElement("button");
     label.type = "button";
     label.className = "note-label";
     label.textContent = Music.noteName(note);
     label.classList.toggle("root", isRoot);
-    const fits = Music.inKey(note, state.root, state.scale);
+    const fits = state.keyOff || Music.inKey(note, state.root, state.scale);
     label.classList.toggle("out-of-key", !fits);
     label.title = fits ? `Note ${note}. Click to hear it.` : `Note ${note}, outside the key. Click to hear it.`;
     label.addEventListener("pointerdown", () => audition([note]));
@@ -659,7 +705,7 @@ function newNoteLength(time) {
 // Adds the note, or the chord built on it, and returns what was added.
 function addNotes(note, time) {
   const added = [];
-  for (const value of Music.chordNotes(note, state.chord, state.root, state.scale)) {
+  for (const value of Music.chordNotes(note, state.chord, keyRoot(), keyScale())) {
     if (notesInCell(value, time).length) continue;
     const item = { time, note: value, velocity: 1, length: newNoteLength(time), probability: 100 };
     notes().push(item);
@@ -2007,7 +2053,7 @@ function exportMidi() {
   const bytes = Music.midiFile(notes(), { bpm: currentBpm(), channel: state.channel });
   const link = document.createElement("a");
   link.href = URL.createObjectURL(new Blob([bytes], { type: "audio/midi" }));
-  const key = `${Music.NOTE_NAMES[state.root].replace("#", "sharp")}-${state.scale}`;
+  const key = state.keyOff ? "no-key" : `${Music.NOTE_NAMES[state.root].replace("#", "sharp")}-${state.scale}`;
   link.download = `s1-grid-pattern-${state.current + 1}-${key}.mid`;
   link.click();
   URL.revokeObjectURL(link.href);
@@ -2082,8 +2128,10 @@ async function importMidi(file) {
   state.sources[state.current] = null;
   library.loaded = null;
   if (parsed.bpm) state.bpm = Math.max(20, Math.min(300, Math.round(parsed.bpm * 10) / 10));
+  // Notes come in as written, with the key off. The likely key is kept for when it's turned on.
   const key = Music.detectKey(kept);
   if (key) Object.assign(state, key);
+  state.keyOff = true;
   const lowest = Math.min(...kept.map((n) => n.note));
   state.lowOctave = Math.max(1, Math.min(6, Math.floor(lowest / 12) - 1));
   state.page = 0;
@@ -2092,7 +2140,8 @@ async function importMidi(file) {
   saveSoon();
   const cut = end > limit ? ` It's longer than ${bars} bars, so the rest was cut.` : "";
   const count = `${kept.length} ${kept.length === 1 ? "note" : "notes"}`;
-  setStatus(`Imported ${count} from ${file.name} into pattern ${state.current + 1}. Undo brings the old one back.${cut}`);
+  const guess = key ? ` The key is off, so every note shows as written. It sounds like ${currentKeyName()}: click ${Music.NOTE_NAMES[state.root]} under Key to use that.` : "";
+  setStatus(`Imported ${count} from ${file.name} into pattern ${state.current + 1}. Undo brings the old one back.${cut}${guess}`);
 }
 
 /* ---------- Saving onto the S-1 ---------- */
@@ -3165,6 +3214,7 @@ function loadPatch(item, { play: startPlaying = false } = {}) {
   state.bpm = Prm.readBpm(item.text);
   const key = Music.detectKey(loadedNotes);
   if (key) Object.assign(state, key);
+  state.keyOff = true;
   if (loadedNotes.length) {
     const lowest = Math.min(...loadedNotes.map((n) => n.note));
     state.lowOctave = Math.max(1, Math.min(6, Math.floor(lowest / 12) - 1));
@@ -3192,7 +3242,7 @@ function openHelp() {
 }
 
 function fillSelects() {
-  $("scale").replaceChildren(...Object.entries(Music.SCALES).map(
+  $("scale").replaceChildren(new Option("Off", "off"), ...Object.entries(Music.SCALES).map(
     ([id, scale]) => new Option(scale.name, id)));
   $("generator").replaceChildren(...Object.entries(Music.GENERATORS).map(
     ([id, name]) => new Option(name, id)));
@@ -3222,7 +3272,10 @@ function bindControls() {
     apply(Number(event.target.value));
     saveSoon();
   });
-  $("scale").addEventListener("change", (event) => setKey(state.root, event.target.value));
+  $("scale").addEventListener("change", (event) => {
+    if (event.target.value === "off") setKeyOff(true);
+    else setKey(state.root, event.target.value);
+  });
   $("move-notes").addEventListener("change", (event) => {
     state.moveNotes = event.target.checked;
     saveSoon();
