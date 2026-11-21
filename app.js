@@ -1587,18 +1587,46 @@ function currentBpm() {
   return value >= 20 && value <= 300 ? value : 120;
 }
 
+/* A song from Song Grid while it plays one: { bars, loop, cues, pulse, muted }. Each cue
+   starts a pattern from its first step, or silence, at a bar, and the song ends or loops
+   after its last bar. The part arrives just before Song Grid starts playback. See sync.js. */
+let song = null;
+let pendingSong = null;
+
+// Called at the start of each chunk. Returns false once the song has ended.
+function followSong() {
+  if (song.pulse % BAR !== 0) return true;
+  if (song.pulse >= song.bars * BAR) {
+    if (!song.loop) {
+      stop({ fromLink: true });
+      setStatus("The song has ended.");
+      return false;
+    }
+    song.pulse = 0;
+  }
+  const bar = song.pulse / BAR;
+  const cue = Sync.songCue(song, bar);
+  if (!cue) return true;
+  song.muted = cue.pattern === null;
+  if (!song.muted && cue.pattern !== state.current) switchTo(cue.pattern);
+  state.nextPulse = 0;
+  setStatus(song.muted ? `Song: silent from bar ${bar + 1}.` : `Song: pattern ${cue.pattern + 1} from bar ${bar + 1}.`);
+  return true;
+}
+
 function schedule() {
   const horizon = performance.now() + SCHEDULE_AHEAD_MS;
   const ms = msPerPulse();
   while (state.nextTime < horizon) {
-    const playing = state.preview || slot();
+    if (song && !followSong()) return;
+    const playing = song?.muted ? { notes: [], bars: slot().bars } : state.preview || slot();
     const from = state.nextPulse;
     const to = from + CHUNK_PULSES;
     if (sendingClock() && from % CLOCK_PULSES === 0 && state.output) {
       state.output.send([0xF8], state.nextTime);
     }
     if (from % PPQ === 0 && !state.sendOnce) click.at(state.nextTime, from % (4 * PPQ) === 0);
-    if (!state.sendOnce) scheduleMotions(from, to, ms);
+    if (!state.sendOnce && !song?.muted) scheduleMotions(from, to, ms);
     for (const note of playing.notes) {
       if (note.time >= from && note.time < to && Math.random() * 100 < (note.probability ?? 100)) {
         for (const part of Music.noteParts(note)) {
@@ -1607,12 +1635,13 @@ function schedule() {
       }
     }
     state.nextTime += CHUNK_PULSES * ms;
+    if (song) song.pulse += CHUNK_PULSES;
     state.nextPulse = to >= lengthPulses(playing) ? 0 : to;
     if (state.nextPulse === 0 && state.sendOnce) {
       finishSendOnce();
       return;
     }
-    if (state.nextPulse === 0 && !state.preview) {
+    if (state.nextPulse === 0 && !state.preview && !song) {
       if (state.queued !== null) switchTo(state.queued);
       else advanceChain();
     }
@@ -1888,10 +1917,14 @@ const link = Sync.connect({
     if (state.playing) stop({ fromLink: true });
     state.bpm = bpm;
     $("bpm").value = bpm;
+    // Song Grid sends this page its part just before it starts playback.
+    song = pendingSong;
+    pendingSong = null;
     play({ startAt: at, fromLink: true });
     return state.playing;
   },
   stop: () => stop({ fromLink: true }),
+  song: (part) => { pendingSong = part; },
   tempo({ bpm, at, pulse }) {
     state.bpm = bpm;
     $("bpm").value = bpm;
@@ -1910,13 +1943,15 @@ const announceTempo = () => link.announceTempo({
 });
 
 function play({ startAt = null, fromLink = false } = {}) {
+  if (!fromLink) song = null;
+  if (song) Object.assign(song, { pulse: 0, muted: false });
   if (!state.output) {
     setStatus("No MIDI output connected. Connect the S-1 and turn it on.", true);
     return;
   }
   state.playing = true;
   state.nextPulse = 0;
-  const chain = state.sendOnce || state.preview ? [] : chainList();
+  const chain = state.sendOnce || state.preview || song ? [] : chainList();
   if (chain.length) {
     state.chainPos = 0;
     if (state.current !== chain[0]) switchTo(chain[0]);
