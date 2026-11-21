@@ -1601,15 +1601,13 @@ let pendingSong = null;
 // Called at the start of each chunk. Returns false once the song has ended.
 function followSong() {
   if (song.pulse % BAR !== 0) return true;
-  if (song.pulse >= song.bars * BAR) {
-    if (!song.loop) {
-      stop({ fromLink: true });
-      setStatus("The song has ended.");
-      return false;
-    }
-    song.pulse = 0;
+  // Each bar after the first moves the song on, following any move from Song Grid.
+  if (song.pulse > 0 && !Sync.songNextBar(song)) {
+    stop({ fromLink: true });
+    setStatus("The song has ended.");
+    return false;
   }
-  const bar = song.pulse / BAR;
+  const bar = song.bar;
   const cue = Sync.songCue(song, bar);
   if (!cue) return true;
   song.muted = cue.pattern === null;
@@ -1930,6 +1928,10 @@ const link = Sync.connect({
   },
   stop: () => stop({ fromLink: true }),
   song: (part) => { pendingSong = part; },
+  songMoved(data) {
+    const move = song && Sync.songMove(data, song.bars);
+    if (move) song.moves.push(move);
+  },
   tempo({ bpm, at, pulse }) {
     state.bpm = bpm;
     $("bpm").value = bpm;
@@ -1949,7 +1951,7 @@ const announceTempo = () => link.announceTempo({
 
 function play({ startAt = null, fromLink = false } = {}) {
   if (!fromLink) song = null;
-  if (song) Object.assign(song, { pulse: 0, muted: false });
+  if (song) Object.assign(Sync.songStart(song), { pulse: 0, muted: false });
   if (!state.output) {
     setStatus("No MIDI output connected. Connect the S-1 and turn it on.", true);
     return;
