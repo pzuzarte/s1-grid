@@ -18,20 +18,38 @@
 <body>
 <header class="bar">
   <h1>S-1 Grid</h1>
-  <div class="field" role="group" aria-labelledby="key-label">
-    <span id="key-label" class="group-label">Key</span>
-    <div id="roots" class="segmented"></div>
-  </div>
+  <label title="The key the grid shows. Off shows every note.">Key
+    <select id="root"></select>
+  </label>
   <label>Scale
     <select id="scale"></select>
   </label>
   <label class="check" title="When on, changing the key moves your patterns into the new key. When off, notes stay where they are.">
-    <input id="move-notes" type="checkbox" checked> Move notes with key
+    <input id="move-notes" type="checkbox" checked> Move notes
   </label>
   <div class="spacer"></div>
+  <label title="The MIDI output the instrument is on">Output
+    <select id="output"></select>
+  </label>
+  <label title="The S-1 uses channel 3 unless you've changed it.">Channel
+    <select id="channel"></select>
+  </label>
   <span id="midi-state" class="pill">MIDI: starting</span>
   <button id="midi-retry" type="button" hidden>Allow MIDI</button>
-  <button id="theme-toggle" type="button" title="Switch between dark and light mode">Light mode</button>
+  <details class="tool-menu">
+    <summary title="Open another of the tools, in its own tab">Tools</summary>
+    <nav aria-label="Tools">
+      <a href="https://pzuzarte.github.io/s1-grid/" target="s1-grid" aria-current="page">S-1 Grid</a>
+      <a href="https://pzuzarte.github.io/protein-grid/" target="protein-grid">Protein Grid</a>
+      <a href="https://pzuzarte.github.io/bass-station-grid/" target="bass-station-grid">Bass Station Grid</a>
+      <a href="https://pzuzarte.github.io/mpc-grid/" target="mpc-grid">MPC Grid</a>
+      <a href="https://pzuzarte.github.io/td3-grid/" target="td3-grid">TD-3 Grid</a>
+      <a href="https://pzuzarte.github.io/song-grid/" target="song-grid">Song Grid</a>
+      <a href="https://pzuzarte.github.io/midi-hub/" target="midi-hub">MIDI Hub</a>
+      <hr>
+      <button id="theme-toggle" type="button" title="Switch between dark and light mode">Light mode</button>
+    </nav>
+  </details>
   <button id="help-open" type="button" title="Help (press ?)">Help</button>
 </header>
 
@@ -53,7 +71,8 @@
   <button id="init-sine" type="button" title="Close to a sine wave: sets every sound control to get as close to a sine wave as the S-1 can, using a filtered square wave. Hear original brings back the sound you had.">Sine</button>
   </div>
   <button id="generate" type="button" title="Replaces this pattern with a new one in the key. Undo brings the old one back.">Generate</button>
-  <button id="undo" type="button" disabled>Undo</button>
+  <button id="undo" type="button" title="Undo (Cmd+Z)" disabled>Undo</button>
+  <button id="redo" type="button" title="Redo (Cmd+Shift+Z)" disabled>Redo</button>
   <button id="duplicate" type="button" title="Copy this pattern to the next empty slot">Duplicate</button>
   <button id="clear" type="button">Clear</button>
 </section>
@@ -64,6 +83,15 @@
   <label>BPM
     <input id="bpm" type="number" min="20" max="300" step="0.1" value="120">
   </label>
+  <label class="check" title="Plays together with the other grids and Song Grid when they're open in this browser. Play, stop and tempo are shared.">
+    <input id="sync" type="checkbox"> Sync
+  </label>
+  <span id="sync-peers" class="pill" role="status" hidden></span>
+  <label class="check" title="Sends MIDI clock, start and stop with playback. These also start the S-1's own sequencer.">
+    <input id="clock" type="checkbox"> Send clock
+  </label>
+  <button id="click" class="toggle" type="button" aria-pressed="false" title="A metronome click on each beat while the pattern plays, louder on the first beat of each bar. It plays from this computer, not the instrument.">Click</button>
+  <span class="divider" aria-hidden="true"></span>
   <label>Bars
     <select id="bars">
       <option value="1">1</option>
@@ -93,6 +121,9 @@
       <option value="bar">1 bar</option>
     </select>
   </label>
+</section>
+
+<section class="bar tools" aria-label="Pattern tools">
   <label>Octave
     <select id="octave"></select>
   </label>
@@ -106,9 +137,7 @@
   <label class="check" title="Show every note, not just the ones in the key.">
     <input id="show-all" type="checkbox"> All notes
   </label>
-</section>
-
-<section class="bar tools" aria-label="Pattern tools">
+  <span class="divider" aria-hidden="true"></span>
   <div class="button-pair">
     <button id="shift-left" type="button" title="Move the whole pattern one step earlier, wrapping around" aria-label="Move earlier">Shift &lt;</button>
     <button id="shift-right" type="button" title="Move the whole pattern one step later, wrapping around" aria-label="Move later">Shift &gt;</button>
@@ -133,7 +162,6 @@
     <button id="record" class="toggle" type="button" aria-pressed="false" title="Record notes from the chosen input. Press Play to record in time as the pattern loops, or just press keys to add them step by step.">Rec</button>
     <select id="record-input" aria-label="Record from" title="The keyboard or instrument to record from"></select>
     <select id="record-channel" aria-label="Record channel" title="The MIDI channel to record, or any"></select>
-    <button id="click" class="toggle" type="button" aria-pressed="false" title="A metronome click on each beat while the pattern plays, louder on the first beat of each bar. It plays from this computer, not the instrument.">Click</button>
   </div>
   <button id="lane-toggle" class="toggle" type="button" aria-pressed="false" title="Draw knob movements under the grid">Knobs</button>
   <label title="Pattern numbers to play in order, such as 1 1 2 3">Chain
@@ -142,12 +170,6 @@
   <label class="check" title="Play the chain when you press Play">
     <input id="chain-on" type="checkbox"> On
   </label>
-  <div class="spacer"></div>
-  <div class="button-pair">
-    <button id="backup" type="button" title="Save all 16 patterns and the sound to one file">Back up</button>
-    <button id="restore" type="button" title="Load all 16 patterns and the sound from a backup file">Restore</button>
-  </div>
-  <input id="restore-file" type="file" accept=".json,application/json" hidden>
 </section>
 
 <div class="workspace">
@@ -251,21 +273,13 @@
 <footer class="bar foot">
   <p id="status" class="status" role="status" aria-live="polite"></p>
   <div class="spacer"></div>
-  <label>MIDI output
-    <select id="output"></select>
-  </label>
-  <label title="The S-1 uses channel 3 unless you've changed it.">Channel
-    <select id="channel"></select>
-  </label>
-  <label class="check" title="Sends MIDI clock, start and stop with playback. These also start the S-1's own sequencer.">
-    <input id="clock" type="checkbox"> Send clock
-  </label>
-  <label class="check" title="Plays together with the other grid when both are open in this browser. Play, stop and tempo are shared.">
-    <input id="sync" type="checkbox"> Sync
-  </label>
-  <span id="sync-peers" class="pill" role="status" hidden></span>
   <button id="save-open" class="primary" type="button" title="Save this pattern and sound onto a pattern on the S-1">Save to S-1</button>
   <button id="send" type="button" title="Plays this pattern once, so the S-1 can record it in real time. See Help.">Record to S-1</button>
+  <div class="button-pair">
+    <button id="backup" type="button" title="Save all 16 patterns and the sound to one file">Back up</button>
+    <button id="restore" type="button" title="Load all 16 patterns and the sound from a backup file">Restore</button>
+  </div>
+  <input id="restore-file" type="file" accept=".json,application/json" hidden>
   <button id="import" type="button" title="Replace this pattern with the notes from a MIDI file. Undo brings the old one back.">Import MIDI</button>
   <input id="import-file" type="file" accept=".mid,.midi,audio/midi" hidden>
   <button id="export" type="button" title="Download this pattern as a MIDI file">Export MIDI</button>
@@ -286,7 +300,7 @@
       <li>Connect the S-1 to your computer with a USB-C data cable, and turn it on.</li>
       <li>Allow MIDI access when asked. The MIDI badge turns green when the S-1 is found. If it says MIDI blocked, click the icon to the left of the address, set <b>MIDI devices</b> to Allow, then click <b>Allow MIDI</b>.</li>
       <li>Click a note name in the grid. You should hear it on the S-1.</li>
-      <li>Check that <b>Channel</b> at the bottom matches the S-1's MIDI channel. It's 3 unless you've changed it.</li>
+      <li>Check that <b>Channel</b>, at the top right, matches the S-1's MIDI channel. It's 3 unless you've changed it.</li>
     </ol>
 
     <h3>Working in a key</h3>
@@ -375,7 +389,7 @@
       <li><b>Save to S-1</b> writes a pattern and sound into the S-1's memory, using its USB backup and restore. It takes a restart of the S-1, and the button walks you through it. This isn't a method Roland documents, so keep a copy of the S-1's <b>BACKUP</b> folder.</li>
       <li>A save holds up to 64 steps, 4 notes per step and values on 1/16 steps. Anything else is rounded or left out, and you're told first. Long notes are saved as tied steps. Settings shown as <b>?</b> stay as they are in the pattern's source. Pan and mod wheel aren't stored in patterns. A pattern loaded from the library keeps its motions, and drawn knob movements are saved. Other saves remove any motions in the slot being replaced. Library patches sent directly are copied exactly.</li>
       <li><b>Record to S-1</b> plays a pattern once for the S-1 to record instead: select a pattern on the S-1, press REC, then PLAY, then click the button soon after. Timing depends on how it records, and this hasn't been confirmed on the hardware.</li>
-      <li><b>Sync</b> plays this page together with <a href="https://pzuzarte.github.io/mpc-grid/" target="_blank" rel="noopener">MPC Grid</a> when both are open in the same browser, each with its MIDI connected. Pressing Play or Stop on either one starts or stops both, from the start of their patterns, at the tempo of the page you pressed. Changing the BPM on either changes both. Patterns of different lengths each loop in their own time. Untick it on either page to play them separately. The badge beside it shows whether the other page is connected.</li>
+      <li><b>Sync</b> plays this page together with the other grids, S-1 Grid, Protein Grid, Bass Station Grid, MPC Grid and TD-3 Grid, when they're open in the same browser, each with its MIDI connected and Sync ticked. Pressing Play or Stop on any of them starts or stops them all, from the start of their patterns, at the tempo of the page you pressed, and changing the BPM on one changes them all. The badge beside Sync shows which pages are linked. <a href="https://pzuzarte.github.io/song-grid/" target="song-grid">Song Grid</a> arranges their patterns into a song and plays them through Sync. The <b>Tools</b> menu at the top opens any of them.</li>
       <li><b>Send clock</b> starts the S-1's own sequencer as well, so you may hear both unless its pattern is empty.</li>
     </ul>
 
@@ -477,5 +491,14 @@
 <script src="backup.js"></script>
 <script src="recorder.js"></script>
 <script src="app.js"></script>
+<script>
+  // The tools menu closes when you click elsewhere or press Escape.
+  document.addEventListener("click", (event) => {
+    for (const menu of document.querySelectorAll(".tool-menu[open]")) if (!menu.contains(event.target)) menu.open = false;
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") for (const menu of document.querySelectorAll(".tool-menu[open]")) menu.open = false;
+  });
+</script>
 </body>
 </html>
