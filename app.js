@@ -1911,6 +1911,58 @@ function renderPeers(names) {
 }
 
 // Plays together with the other grid when both are open. See sync.js.
+// Puts the patterns kept with a song in Song Grid back into their slots, and sends its
+// sound. Undo brings back the patterns that were in those slots. See sync.js.
+const listOf = (items) => (items.length > 1 ? `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}` : items.join(""));
+
+function loadSlotAssets(assets) {
+  const slots = Sync.assetSlots(assets, SLOTS);
+  if (!slots.length) return "";
+  closeNoteEditor({ restoreFocus: false });
+  remember();
+  for (const { index, data } of slots) {
+    state.slots[index] = data;
+    state.sources[index] = null;
+  }
+  if (slots.some(({ index }) => index === state.queued)) state.queued = null;
+  library.loaded = state.sources[state.current] ? state.sources[state.current].name : null;
+  renderLibrary();
+  renderAll();
+  saveSoon();
+  const numbers = listOf(slots.map(({ index }) => index + 1));
+  return `Put ${slots.length === 1 ? `pattern ${numbers}` : `patterns ${numbers}`} in. Undo here brings back what was there.`;
+}
+
+// Tells Song Grid what was put in, and shows it here.
+function reportLoaded(parts, ok) {
+  const message = parts.filter(Boolean).join(" ") || "There was nothing to put in.";
+  setStatus(`From Song Grid: ${message}`, !ok);
+  return { ok, message };
+}
+
+// A sound's settings, checked: only known ones, each 0 to 127. null if none are left.
+function cleanSoundValues(values, known) {
+  if (!values || typeof values !== "object") return null;
+  const clean = Object.fromEntries(Object.entries(values).filter(([key, value]) => known(key) && Number.isFinite(value) && value >= 0 && value <= 127));
+  return Object.keys(clean).length ? clean : null;
+}
+
+async function loadAssets(assets) {
+  const patterns = loadSlotAssets(assets);
+  const values = cleanSoundValues(assets.sound?.data?.values, (key) => /^\d+$/.test(key) && Number(key) < 128);
+  let sound = "";
+  if (values) {
+    if (state.preview) stop();
+    const delay = assets.sound.data.delay;
+    if (delay && typeof delay === "object") state.delay = { ...delay };
+    applySound(values);
+    resetVary();
+    saveSoon();
+    sound = state.output ? "Sent the sound to the S-1." : "The sound is in the controls, but there's no MIDI output, so it wasn't sent to the S-1.";
+  }
+  return reportLoaded([patterns, sound], Boolean(patterns || values) && (!values || Boolean(state.output)));
+}
+
 // What Song Grid keeps of this grid for a song: its patterns, and its sound where it has
 // one. See sync.js.
 function collectAssets() {
@@ -1944,6 +1996,7 @@ const link = Sync.connect({
   stop: () => stop({ fromLink: true }),
   song: (part) => { pendingSong = part; },
   assets: collectAssets,
+  loadAssets,
   songMoved(data) {
     const move = song && Sync.songMove(data, song.bars);
     if (move) song.moves.push(move);
