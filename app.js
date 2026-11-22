@@ -1599,6 +1599,20 @@ let song = null;
 let pendingSong = null;
 
 // Called at the start of each chunk. Returns false once the song has ended.
+// What a song's cue asks for besides its pattern: a tempo, and a preset by program change.
+function setSongBpm(bpm) {
+  if (bpm === currentBpm()) return;
+  state.bpm = bpm;
+  $("bpm").value = bpm;
+}
+
+function sendProgram(program, atTime) {
+  if (state.output) state.output.send([0xC0 | state.channel, program], atTime);
+}
+
+// Notes shift by the song section's transpose, kept in range.
+const songNote = (note) => Math.max(0, Math.min(127, note + (song?.transpose || 0)));
+
 function followSong() {
   if (song.pulse % BAR !== 0) return true;
   // Each bar after the first moves the song on, following any move from Song Grid.
@@ -1609,19 +1623,26 @@ function followSong() {
   }
   const bar = song.bar;
   const cue = Sync.songCue(song, bar);
-  if (!cue) return true;
-  song.muted = cue.pattern === null;
-  if (!song.muted && cue.pattern !== state.current) switchTo(cue.pattern);
-  state.nextPulse = 0;
-  setStatus(song.muted ? `Song: silent from bar ${bar + 1}.` : `Song: pattern ${cue.pattern + 1} from bar ${bar + 1}.`);
+  if (cue) {
+    song.off = cue.pattern === null;
+    if (!song.off && cue.pattern !== state.current) switchTo(cue.pattern);
+    song.transpose = cue.transpose || 0;
+    if (cue.bpm) setSongBpm(cue.bpm);
+    if (Number.isInteger(cue.program)) sendProgram(cue.program, state.nextTime);
+    state.nextPulse = 0;
+    setStatus(song.off ? `Song: silent from bar ${bar + 1}.` : `Song: pattern ${cue.pattern + 1} from bar ${bar + 1}.`);
+  }
+  // Song Grid's mute and solo buttons can silence this grid from any bar.
+  song.muted = song.off || Sync.songSilenced(song);
   return true;
 }
 
 function schedule() {
   const horizon = performance.now() + SCHEDULE_AHEAD_MS;
-  const ms = msPerPulse();
+  let ms = msPerPulse();
   while (state.nextTime < horizon) {
     if (song && !followSong()) return;
+    ms = msPerPulse(); // A song can change the tempo at a bar.
     const playing = song?.muted ? { notes: [], bars: slot().bars } : state.preview || slot();
     const from = state.nextPulse;
     const to = from + CHUNK_PULSES;
@@ -1633,7 +1654,7 @@ function schedule() {
     for (const note of playing.notes) {
       if (note.time >= from && note.time < to && Math.random() * 100 < (note.probability ?? 100)) {
         for (const part of Music.noteParts(note)) {
-          sendNote(note.note, note.velocity, state.nextTime + (part.time - from) * ms, part.length * ms);
+          sendNote(songNote(note.note), note.velocity, state.nextTime + (part.time - from) * ms, part.length * ms);
         }
       }
     }
