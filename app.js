@@ -1963,6 +1963,60 @@ async function loadAssets(assets) {
   return reportLoaded([patterns, sound], Boolean(patterns || values) && (!values || Boolean(state.output)));
 }
 
+/* What this grid can offer Song Grid for a song, to pick from: the patterns in its slots,
+   those in its library, and sounds. fetchPicked gives the ones picked, as assets. Library
+   patterns come without a pattern number, as Song Grid chooses one. See sync.js. */
+const barsText = (bars) => `${bars} bar${bars === 1 ? "" : "s"}`;
+const notesText = (count) => `${count} note${count === 1 ? "" : "s"}`;
+const filledSlots = () => state.slots.map((item, index) => ({ item, index }))
+  .filter(({ item }) => item.notes.length || (item.lanes && Object.keys(item.lanes).length));
+const slotAsset = ({ item, index }) => ({
+  id: `slot:${index}`, ref: index, label: `Pattern ${index + 1}`, length: barsText(item.bars), notes: item.notes.length, data: JSON.parse(JSON.stringify(item)),
+});
+const slotChoices = () => filledSlots().map(({ item, index }) => ({ id: `slot:${index}`, label: `Pattern ${index + 1}`, meta: `${barsText(item.bars)}, ${notesText(item.notes.length)}` }));
+
+function pickedSlots(ids) {
+  return ids.map((id) => /^slot:(\d+)$/.exec(id)).filter((match) => match && state.slots[Number(match[1])])
+    .map((match) => slotAsset({ item: state.slots[Number(match[1])], index: Number(match[1]) }));
+}
+
+const patchById = (id) => (library.status === "ready" ? library.items.find((item) => `patch:${item.name}` === id) : null);
+const isFavouritePatch = (item) => Boolean(library.info[item.name]?.favourite);
+
+function catalog() {
+  const ready = library.status === "ready";
+  return {
+    grid: slotChoices(),
+    patterns: ready ? library.items.filter((item) => item.info.notes).map((item) => ({
+      id: `patch:${item.name}`, label: item.name, meta: `${item.info.notes} steps with notes`, favourite: isFavouritePatch(item),
+    })) : [],
+    sounds: [
+      ...(Object.keys(state.values).length ? [{ id: "current", label: "The sound in the controls", meta: "As it is now" }] : []),
+      ...(ready ? library.items.map((item) => ({ id: `patch:${item.name}`, label: item.name, meta: "Patch", favourite: isFavouritePatch(item) })) : []),
+    ],
+    note: ready ? "" : "Choose the library folder in S-1 Grid to pick from its patches too.",
+  };
+}
+
+function fetchPicked({ patterns = [], sound = null } = {}) {
+  const ids = Array.isArray(patterns) ? patterns : [];
+  const picked = pickedSlots(ids);
+  for (const id of ids) {
+    const item = patchById(id);
+    if (!item) continue;
+    const notes = Prm.readNotes(item.text);
+    const bars = Prm.readBars(item.text);
+    picked.push({ id, ref: null, label: item.name, length: barsText(bars), notes: notes.length, data: { bars, notes } });
+  }
+  let kept = null;
+  if (sound === "current") kept = collectAssets().sound;
+  else if (patchById(sound)) {
+    const item = patchById(sound);
+    kept = { label: item.name, data: { values: Prm.readValues(item.text), delay: Prm.readDelay(item.text) } };
+  }
+  return { patterns: picked, sound: kept };
+}
+
 // What Song Grid keeps of this grid for a song: its patterns, and its sound where it has
 // one. See sync.js.
 function collectAssets() {
@@ -1997,6 +2051,7 @@ const link = Sync.connect({
   song: (part) => { pendingSong = part; },
   assets: collectAssets,
   loadAssets,
+  answers: { catalog, fetch: fetchPicked },
   songMoved(data) {
     const move = song && Sync.songMove(data, song.bars);
     if (move) song.moves.push(move);
