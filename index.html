@@ -4,10 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>S-1 Grid</title>
-<link rel="stylesheet" href="style.css?v=202611222333">
+<link rel="stylesheet" href="style.css?v=202611232212">
 <script>
   // Set before the page draws, so it doesn't flash the other theme.
-  try { if (localStorage.getItem("s1-grid-theme") === "light") document.documentElement.dataset.theme = "light"; } catch {}
+  try { if ((localStorage.getItem("midi-grids-theme") || localStorage.getItem("s1-grid-theme")) === "light") document.documentElement.dataset.theme = "light"; } catch {}
 </script>
 <!-- Counts visits anonymously. A fixed version with a checksum, and the tool works if it's blocked. -->
 <script data-goatcounter="https://pzuzarte.goatcounter.com/count"
@@ -46,10 +46,9 @@
       <a href="https://pzuzarte.github.io/td3-grid/" target="td3-grid">TD-3 Grid</a>
       <a href="https://pzuzarte.github.io/song-grid/" target="song-grid">Song Grid</a>
       <a href="https://pzuzarte.github.io/midi-hub/" target="midi-hub">MIDI Hub</a>
-      <hr>
-      <button id="theme-toggle" type="button" title="Switch between dark and light mode">Light mode</button>
     </nav>
   </details>
+  <button id="theme-toggle" class="theme-toggle" type="button" title="Switch between dark and light mode, for all the grids" aria-label="Dark or light mode">☀</button>
   <button id="help-open" type="button" title="Help (press ?)">Help</button>
 </header>
 
@@ -353,7 +352,7 @@
 
     <h3>Sound controls</h3>
     <ul>
-      <li><b>Back to saved sound</b> returns every setting to what's saved in the pattern's patch, after trying changes. <b>Hear original</b> brings back the sound you had. <b>Light mode</b> at the top switches the page's colours, and it's remembered.</li>
+      <li><b>Back to saved sound</b> returns every setting to what's saved in the pattern's patch, after trying changes. <b>Hear original</b> brings back the sound you had. The <b>☀</b> or <b>☾</b> button at the top switches between dark and light, for all the grids at once, and it's remembered.</li>
       <li><b>Vary</b> nudges the sound's levels a little or a lot, leaving tuning, pan and switches alone. <b>Hear original</b> flips between the sound before you started and the new one.</li>
       <li>The panel on the right has every control the S-1 accepts over MIDI, grouped into tabs. Changes are immediate, even during playback.</li>
       <li>The sound stays the same when you switch patterns. Only loading a patch or a saved sound changes it, and saving a pattern saves the sound as it is then.</li>
@@ -484,13 +483,13 @@
     <p id="import-error" class="status error" role="alert" hidden></p>
   </div>
 </dialog>
-<script src="music.js?v=202611222333"></script>
-<script src="prm.js?v=202611222333"></script>
-<script src="params.js?v=202611222333"></script>
-<script src="sync.js?v=202611222333"></script>
-<script src="backup.js?v=202611222333"></script>
-<script src="recorder.js?v=202611222333"></script>
-<script src="app.js?v=202611222333"></script>
+<script src="music.js?v=202611232212"></script>
+<script src="prm.js?v=202611232212"></script>
+<script src="params.js?v=202611232212"></script>
+<script src="sync.js?v=202611232212"></script>
+<script src="backup.js?v=202611232212"></script>
+<script src="recorder.js?v=202611232212"></script>
+<script src="app.js?v=202611232212"></script>
 <script>
   // The tools menu closes when you click elsewhere or press Escape.
   document.addEventListener("click", (event) => {

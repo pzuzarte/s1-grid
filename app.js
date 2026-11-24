@@ -3298,12 +3298,13 @@ function revertSound() {
   setStatus(`Back to the sound saved in "${source.name}". ${sent}`, !state.output);
 }
 
-const THEME_KEY = "s1-grid-theme";
+// Shared by all the grids, so switching one switches them all.
+const THEME_KEY = "midi-grids-theme";
 
 function setTheme(theme) {
   if (theme === "light") document.documentElement.dataset.theme = "light";
   else delete document.documentElement.dataset.theme;
-  $("theme-toggle").textContent = theme === "light" ? "Dark mode" : "Light mode";
+  $("theme-toggle").textContent = theme === "light" ? "☾" : "☀";
   try {
     localStorage.setItem(THEME_KEY, theme);
   } catch {
@@ -3311,6 +3312,11 @@ function setTheme(theme) {
   }
   renderLane();
 }
+
+// Follows a switch made on another grid open in this browser.
+window.addEventListener("storage", (event) => {
+  if (event.key === THEME_KEY && event.newValue) setTheme(event.newValue === "light" ? "light" : "dark");
+});
 
 // Sends a sound to the S-1 and shows it on the page. A short gap keeps a burst of
 // messages from overrunning the S-1.
@@ -3588,7 +3594,7 @@ function bindControls() {
   $("vary-small").addEventListener("click", () => varySound(0.06));
   $("revert-sound").addEventListener("click", revertSound);
   $("theme-toggle").addEventListener("click", () => setTheme(document.documentElement.dataset.theme === "light" ? "dark" : "light"));
-  $("theme-toggle").textContent = document.documentElement.dataset.theme === "light" ? "Dark mode" : "Light mode";
+  $("theme-toggle").textContent = document.documentElement.dataset.theme === "light" ? "☾" : "☀";
   $("vary-big").addEventListener("click", () => varySound(0.25));
   $("vary-compare").addEventListener("click", compareVary);
   $("library-favourites").addEventListener("change", (event) => {
