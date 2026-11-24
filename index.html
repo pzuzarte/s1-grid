@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>S-1 Grid</title>
-<link rel="stylesheet" href="style.css?v=202611232240">
+<link rel="stylesheet" href="style.css?v=202611232252">
 <script>
   // Set before the page draws, so it doesn't flash the other theme.
   try { if ((localStorage.getItem("midi-grids-theme") || localStorage.getItem("s1-grid-theme")) === "light") document.documentElement.dataset.theme = "light"; } catch {}
@@ -161,6 +161,7 @@
     <button id="record" class="toggle" type="button" aria-pressed="false" title="Record notes from the chosen input. Press Play to record in time as the pattern loops, or just press keys to add them step by step.">Rec</button>
     <select id="record-input" aria-label="Record from" title="The keyboard or instrument to record from"></select>
     <select id="record-channel" aria-label="Record channel" title="The MIDI channel to record, or any"></select>
+    <select id="record-snap" aria-label="Where recorded notes land" title="Exact keeps each recorded note where you played it. Snap to steps moves it to the nearest step. Either way, it ends where you let go."></select>
   </div>
   <button id="lane-toggle" class="toggle" type="button" aria-pressed="false" title="Draw knob movements under the grid">Knobs</button>
   <label title="Pattern numbers to play in order, such as 1 1 2 3">Chain
@@ -283,7 +284,7 @@
   <input id="import-file" type="file" accept=".mid,.midi,audio/midi" hidden>
   <button id="export" type="button" title="Download this pattern as a MIDI file">Export MIDI</button>
 </footer>
-<p class="hint">Click: add or remove a step. Drag from an empty step: draw a note. Drag the left of a note: move its start. Drag the right of a note: change its length. Cmd-drag: fill steps. Right-click: edit a step. Shift-click: velocity. Click a note name to hear it. Click step numbers: choose steps. Space: play and stop. T: triplets.</p>
+<p class="hint">Click: add or remove a step. Drag from an empty step: draw a note. Drag the left of a note: move its start. Drag the right of a note: change its length. Cmd-drag: fill steps. Right-click: edit a step. Shift-click: velocity. Hold a note name to hear it, for as long as you hold it. Click step numbers: choose steps. Space: play and stop. T: triplets.</p>
 
 <dialog id="help" class="help" aria-labelledby="help-title">
   <div class="help-head">
@@ -337,7 +338,7 @@
     <ul>
       <li><b>Sub-step</b>, when you right-click a step, plays it in quick repeats using the S-1's 14 patterns, where <b>o</b> plays and <b>-</b> is silent. They play here, save to the S-1, and show on the note.</li>
       <li><b>Chain</b> takes pattern numbers such as <b>1 1 2 3</b>. Tick <b>On</b> and Play goes through them in order, looping. Clicking a pattern during playback plays it next, then the chain carries on.</li>
-      <li><b>Rec</b> records notes from the input and channel chosen beside it: the S-1's keys, another keyboard, or any input on any channel. While playing, notes land on the nearest step and last as long as you hold them, or the length chosen in <b>Length</b> if it isn't Off, and each time round the loop adds to what's there. While stopped, each key adds a note and moves on a step, starting from the chosen step. Undo takes back the whole take.</li>
+      <li><b>Rec</b> records notes from the input and channel chosen beside it: the S-1's keys, another keyboard, or any input on any channel. While playing, notes land exactly where you play them, or on the nearest step with <b>Snap to steps</b> chosen beside Rec, and end where you let go: they last as long as you hold them, or the length chosen in <b>Length</b> if it isn't Off, and each time round the loop adds to what's there. While stopped, each key adds a note and moves on a step, starting from the chosen step. Undo takes back the whole take.</li>
       <li><b>Click</b> plays a metronome click on each beat while the pattern plays, louder on the first beat of each bar. It comes from this computer's speakers, not the instrument, and stays on or off for next time.</li>
       <li>While recording, notes from another keyboard are passed on to the S-1, so you hear them. If MIDI Hub is also routing that keyboard to the S-1, you'll hear each note twice, so choose one.</li>
     </ul>
@@ -388,7 +389,7 @@
       <li><b>Save to S-1</b> writes a pattern and sound into the S-1's memory, using its USB backup and restore. It takes a restart of the S-1, and the button walks you through it. This isn't a method Roland documents, so keep a copy of the S-1's <b>BACKUP</b> folder.</li>
       <li>A save holds up to 64 steps, 4 notes per step and values on 1/16 steps. Anything else is rounded or left out, and you're told first. Long notes are saved as tied steps. Settings shown as <b>?</b> stay as they are in the pattern's source. Pan and mod wheel aren't stored in patterns. A pattern loaded from the library keeps its motions, and drawn knob movements are saved. Other saves remove any motions in the slot being replaced. Library patches sent directly are copied exactly.</li>
       <li><b>Record to S-1</b> plays a pattern once for the S-1 to record instead: select a pattern on the S-1, press REC, then PLAY, then click the button soon after. Timing depends on how it records, and this hasn't been confirmed on the hardware.</li>
-      <li><b>Sync</b> plays this page together with the other grids, S-1 Grid, Protein Grid, Bass Station Grid, MPC Grid and TD-3 Grid, when they're open in the same browser, each with its MIDI connected and Sync ticked. Pressing Play or Stop on any of them starts or stops them all, from the start of their patterns, at the tempo of the page you pressed, and changing the BPM on one changes them all. The badge beside Sync shows which pages are linked. <a href="https://pzuzarte.github.io/song-grid/" target="song-grid">Song Grid</a> arranges their patterns into a song and plays them through Sync. The <b>Tools</b> menu at the top opens any of them.</li>
+      <li><b>Sync</b> plays this page together with the other grids, S-1 Grid, Protein Grid, Bass Station Grid, MPC Grid and TD-3 Grid, when they're open in the same browser, each with its MIDI connected and Sync ticked. Pressing Play or Stop on any of them starts or stops them all, from the start of their patterns, at the tempo of the page you pressed, and changing the BPM on one changes them all. The badge beside Sync shows which pages are linked. Sync starts off each time the page opens, so tick it to link the page. <a href="https://pzuzarte.github.io/song-grid/" target="song-grid">Song Grid</a> arranges their patterns into a song and plays them through Sync. The <b>Tools</b> menu at the top opens any of them.</li>
       <li><b>Send clock</b> starts the S-1's own sequencer as well, so you may hear both unless its pattern is empty.</li>
     </ul>
 
@@ -483,13 +484,13 @@
     <p id="import-error" class="status error" role="alert" hidden></p>
   </div>
 </dialog>
-<script src="music.js?v=202611232240"></script>
-<script src="prm.js?v=202611232240"></script>
-<script src="params.js?v=202611232240"></script>
-<script src="sync.js?v=202611232240"></script>
-<script src="backup.js?v=202611232240"></script>
-<script src="recorder.js?v=202611232240"></script>
-<script src="app.js?v=202611232240"></script>
+<script src="music.js?v=202611232252"></script>
+<script src="prm.js?v=202611232252"></script>
+<script src="params.js?v=202611232252"></script>
+<script src="sync.js?v=202611232252"></script>
+<script src="backup.js?v=202611232252"></script>
+<script src="recorder.js?v=202611232252"></script>
+<script src="app.js?v=202611232252"></script>
 <script>
   // The tools menu closes when you click elsewhere or press Escape.
   document.addEventListener("click", (event) => {

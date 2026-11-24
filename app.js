@@ -536,7 +536,7 @@ function renderGrid() {
     const fits = state.keyOff || Music.inKey(note, state.root, state.scale);
     label.classList.toggle("out-of-key", !fits);
     label.title = fits ? `Note ${note}. Click to hear it.` : `Note ${note}, outside the key. Click to hear it.`;
-    label.addEventListener("pointerdown", () => audition([note]));
+    holdNoteOn(label, note);
     nodes.push(label);
     for (let step = 0; step < stepCount; step += 1) {
       const time = windowStart + step * state.resolution;
@@ -1596,7 +1596,7 @@ function setUpRecorder() {
       if (state.output) state.output.send([status | state.channel, note, velocity]);
     },
     isInstrument: isS1,
-  }, { storageKey: "s1-grid-record-input", button: $("record"), input: $("record-input"), channel: $("record-channel") });
+  }, { storageKey: "s1-grid-record-input", button: $("record"), input: $("record-input"), channel: $("record-channel"), snap: $("record-snap") });
 }
 
 function sendNote(note, velocity, atTime, lengthMs) {
@@ -1610,6 +1610,40 @@ function sendNote(note, velocity, atTime, lengthMs) {
     setStatus(`MIDI send failed: ${error.message}`, true);
     stop();
   }
+}
+
+// A note name plays its note for as long as it's held down.
+function holdNoteOn(element, note) {
+  element.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0) return;
+    if (!state.output) {
+      setStatus("No MIDI output connected.", true);
+      return;
+    }
+    const output = state.output;
+    const channel = state.channel;
+    const now = performance.now();
+    recorder.sent(note, now);
+    output.send([0x90 | channel, note, 127]);
+    element.classList.add("held");
+    let released = false;
+    const release = () => {
+      if (released) return;
+      released = true;
+      output.send([0x80 | channel, note, 0]);
+      element.classList.remove("held");
+      for (const type of ["pointerup", "pointercancel", "lostpointercapture"]) element.removeEventListener(type, release);
+    };
+    // Captures the pointer, so letting go anywhere ends the note.
+    try {
+      element.setPointerCapture(event.pointerId);
+    } catch {
+      // It still ends when let go over the name.
+    }
+    for (const type of ["pointerup", "pointercancel", "lostpointercapture"]) element.addEventListener(type, release);
+    // In case the grid is redrawn while the name is held.
+    window.addEventListener("pointerup", release, { once: true });
+  });
 }
 
 function audition(noteList, velocity = 1) {
@@ -2099,6 +2133,7 @@ function collectAssets() {
 }
 
 const link = Sync.connect({
+  startOff: true, // Each visit starts with Sync off.
   name: "S-1 Grid",
   checkbox: $("sync"),
   storageKey: "s1-grid-sync",
@@ -3713,6 +3748,8 @@ function bindControls() {
 
 async function start() {
   restore();
+  // Each visit starts with the key and scale off. Choosing a key brings back the last one.
+  state.keyOff = true;
   fillSelects();
   bindControls();
   bindGridEvents();
