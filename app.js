@@ -620,6 +620,13 @@ function renderNoteBars() {
       bar.classList.add("sub");
       bar.append(mark);
     }
+    // Its start, when the note begins on this page.
+    if (note.time === barStart) {
+      const startHandle = document.createElement("span");
+      startHandle.className = "note-handle note-start";
+      startHandle.title = "Drag to change where this note starts. Its end stays put. Hold Alt for finer control.";
+      bar.append(startHandle);
+    }
     // A note running past this page can't be resized from here.
     if (noteEnd <= end) {
       const handle = document.createElement("span");
@@ -759,9 +766,40 @@ function startLengthDrag(event, handle) {
     && n.time < anchorTime + state.resolution && n.time + n.length > anchorTime);
   if (!found) return;
   remember();
-  state.lengthDrag = { items: [found], anchorTime, cell, pressed: true, startX: event.clientX };
+  const edge = handle.classList.contains("note-start") ? "start" : "end";
+  state.lengthDrag = { items: [found], anchorTime, cell, pressed: true, startX: event.clientX, edge };
   event.preventDefault();
 }
+
+// Dragging a note's start moves where it begins, while its end stays put. Like resizing,
+// it moves in fine steps, and Alt gives single ticks.
+function moveStartDrag(event, drag, box, items, setItems) {
+  const gap = parseFloat(getComputedStyle($("grid")).getPropertyValue("--grid-gap")) || 0;
+  const ticksAt = (x) => drag.anchorTime + ((x - box.left) / (box.width + gap)) * state.resolution;
+  drag.ends ??= items.map((item) => item.time + item.length);
+  if (drag.grabOffset === undefined) drag.grabOffset = items[0].time - ticksAt(drag.startX);
+  const pointer = ticksAt(event.clientX) + drag.grabOffset;
+  const divisions = box.width < NARROW_STEP_PX ? FINE_DIVISIONS / 2 : FINE_DIVISIONS;
+  const unit = event.altKey ? 1 : state.resolution / divisions;
+  const latest = Math.min(...drag.ends) - (event.altKey ? 1 : unit);
+  const start = Math.max(state.windowStart, Math.min(latest, Math.round(pointer / unit) * unit));
+  const before = items[0].time;
+  if (start !== before) {
+    items.forEach((item, index) => {
+      item.time = start;
+      item.length = drag.ends[index] - start;
+    });
+    setItems();
+    for (const time of [before, start]) {
+      const cell = cellElement(items[0].note, Math.floor(time / state.resolution) * state.resolution);
+      if (cell) paintCell(cell);
+    }
+    renderNoteBars();
+  }
+  const step = start / state.resolution + 1;
+  setStatus(`Starts at step ${Number.isInteger(step) ? step : step.toFixed(2)}, ${describeLength(drag.ends[0] - start)} long. The end stays where it was.`);
+}
+
 
 // Where a resize ends. Drawing a new note uses whole steps, while resizing is finer so
 // a note can end inside a step. Alt gives single ticks.
@@ -793,6 +831,10 @@ function moveLengthDrag(event) {
   if (drag.pressed && !drag.moved) {
     if (Math.abs(event.clientX - drag.startX) < DRAG_THRESHOLD_PX) return;
     drag.moved = true;
+  }
+  if (drag.edge === "start") {
+    moveStartDrag(event, drag, box, drag.items, () => notes().sort((a, b) => a.time - b.time || a.note - b.note));
+    return;
   }
   const start = drag.items[0].time;
   const target = dragEnd(event, drag, start, drag.items[0].length, box);
@@ -872,9 +914,12 @@ function bindGridEvents() {
       paintCell(cell);
       state.paint = { on: false };
     } else {
-      // Dragging a note resizes it, so it's only removed by a click that doesn't move.
+      // Dragging a note changes it, so it's only removed by a click that doesn't move. The
+      // left part of the note moves its start, and the rest changes its length.
+      const box = cell.getBoundingClientRect();
       state.lengthDrag = {
         items: notesInCell(note, time), anchorTime: time, cell, pressed: true, startX: event.clientX,
+        edge: event.clientX < box.left + box.width * 0.4 ? "start" : "end",
       };
     }
     renderChrome();
