@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>S-1 Grid</title>
-<link rel="stylesheet" href="style.css?v=202611232300">
+<link rel="stylesheet" href="style.css?v=202611232345">
 <script>
   // Set before the page draws, so it doesn't flash the other theme.
   try { if ((localStorage.getItem("midi-grids-theme") || localStorage.getItem("s1-grid-theme")) === "light") document.documentElement.dataset.theme = "light"; } catch {}
@@ -51,6 +51,14 @@
   <button id="theme-toggle" class="theme-toggle" type="button" title="Switch between dark and light mode, for all the grids" aria-label="Dark or light mode">☀</button>
   <button id="help-open" type="button" title="Help (press ?)">Help</button>
 </header>
+
+<section class="bar name-bar" aria-label="This pattern's patch file">
+  <span class="group-label">Patch</span>
+  <strong id="pattern-name" class="pattern-name untitled">Untitled</strong>
+  <button id="pattern-save" class="primary" type="button" title="Save this pattern and sound to its patch file again (Cmd+S). The first time, it asks where.">Save</button>
+  <button id="pattern-save-as" type="button" title="Save this pattern and sound as a new patch file, choosing its name and folder (Cmd+Shift+S)">Save as&hellip;</button>
+  <button id="pattern-open" type="button" title="Open an S-1 patch file from anywhere on this computer into this pattern">Open&hellip;</button>
+</section>
 
 <section class="bar slots-bar" aria-label="Patterns">
   <span class="group-label">Pattern</span>
@@ -372,6 +380,7 @@
       <li><b>Import from S-1</b> lets you pick which of the S-1's 64 patterns to copy into the library, and name each one. It reads the S-1's USB drive, or a <b>BACKUP</b> folder you saved, and doesn't change anything on the S-1.</li>
       <li><b>Import backup</b> fills it from an S-1 <b>BACKUP</b> folder, with its patterns that have notes and one blank patch. These are whatever is saved on your S-1, which may include your own edits.</li>
       <li>Click a patch to load it: the grid fills with its notes, its sound controls update, and its sound is sent to the S-1. The play button also starts playback. A patch's key is estimated from its notes.</li>
+      <li>The bar at the top shows the name of the pattern's patch, large. <b>Save</b> (Cmd+S) saves the pattern and sound to that patch file again, under the same name. The first time, and with <b>Save as&hellip;</b> (Cmd+Shift+S), the Mac's Save dialog asks for a name and a folder, starting in the library folder, then in wherever you saved last. <b>Open&hellip;</b> opens an S-1 patch file from anywhere into the pattern you're on.</li>
       <li><b>Save to library</b> saves the current pattern and sound as a patch, and works with no notes if you just want to keep a sound. Loading a patch fills in its name, so saving updates it after asking. Type a new name to keep both.</li>
       <li>Names are entirely up to you: use <b>Name</b> to rename a patch. The S-1 doesn't store names, and its files have fixed names by slot, which the page handles when saving.</li>
       <li><b>To send several at once:</b> tick patches in the list, then click <b>Send to S-1</b>. Each patch gets a row with its own slot. They start on the next empty slots. To change one, select its row and click a slot, or use its list. The same patch can go to several slots with <b>Add to list</b>.</li>
@@ -484,13 +493,14 @@
     <p id="import-error" class="status error" role="alert" hidden></p>
   </div>
 </dialog>
-<script src="music.js?v=202611232300"></script>
-<script src="prm.js?v=202611232300"></script>
-<script src="params.js?v=202611232300"></script>
-<script src="sync.js?v=202611232300"></script>
-<script src="backup.js?v=202611232300"></script>
-<script src="recorder.js?v=202611232300"></script>
-<script src="app.js?v=202611232300"></script>
+<script src="music.js?v=202611232345"></script>
+<script src="named-file.js?v=202611232345"></script>
+<script src="prm.js?v=202611232345"></script>
+<script src="params.js?v=202611232345"></script>
+<script src="sync.js?v=202611232345"></script>
+<script src="backup.js?v=202611232345"></script>
+<script src="recorder.js?v=202611232345"></script>
+<script src="app.js?v=202611232345"></script>
 <script>
   // The tools menu closes when you click elsewhere or press Escape.
   document.addEventListener("click", (event) => {

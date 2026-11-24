@@ -242,7 +242,8 @@ function duplicatePattern() {
   stop();
   remember();
   state.slots[target] = JSON.parse(JSON.stringify(slot()));
-  state.sources[target] = state.sources[state.current];
+  // The copy is a new pattern, so it doesn't save over the original's file.
+  state.sources[target] = state.sources[state.current] ? { ...state.sources[state.current], fileKey: null } : null;
   switchTo(target);
   setStatus(`Copied to pattern ${target + 1}.`);
 }
@@ -3051,8 +3052,9 @@ async function addPatchToLibrary() {
       notes: notes(), bars: slot().bars, bpm: currentBpm(), values: state.values, keepMotions: Boolean(source), motions: drawnMotions(), delay: state.delay,
     });
     await writeBytes(library.folder, file, new TextEncoder().encode(text));
-    state.sources[state.current] = { name, text };
+    state.sources[state.current] = { name, text, fileKey: null };
     library.loaded = name;
+    rememberLibraryFile(state.current, name);
     await readLibrary();
     saveSoon();
     renderPatchName();
@@ -3369,10 +3371,121 @@ async function writeImportedPatches() {
 
 /* ---------- Loading a patch ---------- */
 
+/* ---------- Patch files ---------- */
+
+// A pattern and its sound saved as an S-1 patch file, anywhere, with the Mac's Save dialog,
+// starting in the library folder. Each pattern remembers its file, so Save writes to it again.
+const patchFiles = NamedFile.create({
+  db: "s1-grid-files", id: "s1-grid-patches", extension: PATCH_EXTENSION, description: "S-1 patch",
+});
+
+function renderNameBar() {
+  const source = state.sources[state.current];
+  const label = $("pattern-name");
+  if (!label) return;
+  label.textContent = source ? source.name : "Untitled";
+  label.classList.toggle("untitled", !source);
+  label.title = source
+    ? `Pattern ${state.current + 1} is "${source.name}". Save writes to its file again.`
+    : `Pattern ${state.current + 1} hasn't been saved as a patch yet. Save asks where to save it.`;
+}
+
+// The patch as a file: this pattern and sound, on top of the patch it came from.
+function patchText() {
+  const source = state.sources[state.current];
+  const blank = library.items.find((item) => !item.info.notes && !item.info.motions) || library.items[0];
+  const template = source ? source.text : blank && blank.text;
+  if (!template) throw new Error("Use Import backup on the Library tab first, as new patches start from one of your S-1's files.");
+  return Prm.render(template, {
+    notes: notes(), bars: slot().bars, bpm: currentBpm(), values: state.values, keepMotions: Boolean(source), motions: drawnMotions(), delay: state.delay,
+  });
+}
+
+// A patch loaded from the library saves back to its own file there.
+async function rememberLibraryFile(index, name) {
+  if (library.status !== "ready") return;
+  try {
+    const handle = await library.folder.getFileHandle(`${name}${PATCH_EXTENSION}`);
+    const key = NamedFile.newKey();
+    await patchFiles.remember(key, handle);
+    if (state.sources[index]?.name === name) {
+      state.sources[index].fileKey = key;
+      saveSoon();
+    }
+  } catch {
+    // Save asks where instead.
+  }
+}
+
+// Save writes to the pattern's file again. Save as, or Save with no file yet, asks where.
+async function savePatchFile({ asNew = false } = {}) {
+  if (!patchFiles.supported()) {
+    setStatus("Saving patches as files needs Chrome or Edge on a computer.", true);
+    return;
+  }
+  const index = state.current;
+  const source = state.sources[index];
+  let rendered;
+  try {
+    rendered = patchText();
+  } catch (error) {
+    setStatus(error.message, true);
+    return;
+  }
+  const bytes = new TextEncoder().encode(rendered.text);
+  try {
+    let saved = null;
+    if (!asNew && source?.fileKey) saved = await patchFiles.save(source.fileKey, bytes);
+    let fileKey = source?.fileKey;
+    if (!saved) {
+      fileKey = NamedFile.newKey();
+      saved = await patchFiles.saveAs(fileKey, source?.name || `Pattern ${index + 1}`, bytes,
+        { startIn: library.status === "ready" ? library.folder : undefined });
+      if (!saved) {
+        setStatus("Not saved.");
+        return;
+      }
+    }
+    state.sources[index] = { name: saved.name, text: rendered.text, fileKey };
+    library.loaded = saved.name;
+    $("library-name").value = saved.name;
+    if (library.status === "ready") await readLibrary();
+    saveSoon();
+    renderPatchName();
+    renderLibrary();
+    setStatus(`Saved "${saved.name}".${rendered.warnings.length ? ` ${rendered.warnings.join(" ")}` : ""}`);
+  } catch (error) {
+    setStatus(`Couldn't save it: ${error.message}`, true);
+  }
+}
+
+// Opens an S-1 patch file from anywhere into the pattern you're on.
+async function openPatchFile() {
+  if (!patchFiles.supported()) {
+    setStatus("Opening patch files needs Chrome or Edge on a computer.", true);
+    return;
+  }
+  const key = NamedFile.newKey();
+  try {
+    const opened = await patchFiles.open(key, { startIn: library.status === "ready" ? library.folder : undefined });
+    if (!opened) return;
+    const text = new TextDecoder().decode(opened.bytes);
+    if (Prm.validate(text).length) {
+      await patchFiles.forget(key);
+      setStatus(`"${opened.name}" isn't an S-1 patch file.`, true);
+      return;
+    }
+    loadPatch({ name: opened.name, text, info: Prm.describe(text), bpm: Prm.readBpm(text) });
+    state.sources[state.current].fileKey = key;
+    saveSoon();
+  } catch (error) {
+    setStatus(`Couldn't open it: ${error.message}`, true);
+  }
+}
+
 function renderPatchName() {
   const source = state.sources[state.current];
-  $("patch-name").hidden = !source;
-  if (source) $("patch-name").textContent = `Patch: ${source.name}`;
+  renderNameBar();
   $("revert-sound").disabled = !source;
 }
 
@@ -3499,8 +3612,9 @@ function loadPatch(item, { play: startPlaying = false } = {}) {
   slot().notes = loadedNotes;
   delete slot().lanes;
   slot().bars = Prm.readBars(item.text);
-  state.sources[state.current] = { name: item.name, text: item.text };
+  state.sources[state.current] = { name: item.name, text: item.text, fileKey: null };
   library.loaded = item.name;
+  rememberLibraryFile(state.current, item.name);
   $("library-name").value = item.name;
   state.bpm = Prm.readBpm(item.text);
   const key = Music.detectKey(loadedNotes);
@@ -3654,6 +3768,9 @@ function bindControls() {
     openSaveDialog(batch[0], batch);
   });
   $("library-save").addEventListener("click", addPatchToLibrary);
+  $("pattern-save").addEventListener("click", () => savePatchFile());
+  $("pattern-save-as").addEventListener("click", () => savePatchFile({ asNew: true }));
+  $("pattern-open").addEventListener("click", openPatchFile);
   $("library-search").addEventListener("input", (event) => {
     library.search = event.target.value;
     renderLibrary();
@@ -3733,6 +3850,12 @@ function bindControls() {
     }
     if (event.key === "Escape" && state.editor) {
       closeNoteEditor();
+      return;
+    }
+    // Cmd+S saves the patch to its file, and Cmd+Shift+S saves it as a new one.
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
+      event.preventDefault();
+      if (!event.repeat) savePatchFile({ asNew: event.shiftKey });
       return;
     }
     // Space is the transport wherever you've last clicked, unless you're writing text.
