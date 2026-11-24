@@ -236,8 +236,10 @@ const Music = (() => {
   function rotateNotes(notes, by, patternLength) {
     return notes
       .map((item) => {
+        // A note keeps its whole length. One that crosses the end carries on into the start,
+        // so shifting back brings it back as it was.
         const time = ((item.time + by) % patternLength + patternLength) % patternLength;
-        return { ...item, time, length: Math.min(item.length, patternLength - time) };
+        return { ...item, time, length: Math.min(item.length, patternLength) };
       })
       .sort((a, b) => a.time - b.time || a.note - b.note);
   }

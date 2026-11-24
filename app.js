@@ -597,8 +597,26 @@ function renderNoteBars() {
   document.querySelectorAll(".cell.has-bar").forEach((cell) => cell.classList.remove("has-bar"));
   const start = state.windowStart;
   const end = start + state.windowSpan;
+  const PATTERN_END = lengthPulses();
   for (const note of notes()) {
     const noteEnd = note.time + note.length;
+    // The part of a note that crosses the pattern's end, drawn at its start.
+    const overflow = noteEnd - PATTERN_END;
+    if (overflow > 0 && overflow > start && 0 < end) {
+      const tailStart = Math.max(0, start);
+      const tailCell = cellElement(note.note, Math.floor(tailStart / state.resolution) * state.resolution);
+      if (tailCell) {
+        const tailSteps = (Math.min(overflow, end) - tailStart) / state.resolution;
+        const tailBar = document.createElement("span");
+        tailBar.className = "note-bar wrapped";
+        tailBar.title = "The end of a note that starts near the end of the pattern";
+        tailBar.style.setProperty("--steps", String(tailSteps));
+        tailBar.style.setProperty("--gaps", String(Math.max(0, Math.ceil(tailSteps) - 1)));
+        tailBar.style.left = `${((tailStart - Math.floor(tailStart / state.resolution) * state.resolution) / state.resolution) * 100}%`;
+        tailBar.style.setProperty("--velocity", String(0.3 + 0.7 * note.velocity));
+        tailCell.append(tailBar);
+      }
+    }
     if (noteEnd <= start || note.time >= end) continue;
     const cellTime = Math.floor(note.time / state.resolution) * state.resolution;
     const anchorTime = Math.max(cellTime, start);

@@ -32,12 +32,15 @@ test("scale moves follow the scale, and refuse to leave the MIDI range", () => {
   assert.equal(Music.shiftInScale([note({ note: 127 })], 1, 0, "chromatic"), null);
 });
 
-test("rotating wraps around the pattern and keeps notes inside it", () => {
+test("rotating wraps around the pattern, and a note crossing the end keeps its length", () => {
   const moved = Music.rotateNotes([note({ time: 3600 }), note({ time: 240, note: 62 })], 240, 3840);
   assert.deepEqual(moved.map((item) => [item.time, item.note]), [[0, 60], [480, 62]]);
   const back = Music.rotateNotes([note({ time: 0 })], -240, 3840);
   assert.equal(back[0].time, 3600);
-  assert.equal(Music.rotateNotes([note({ time: 3360, length: 480 })], 240, 3840)[0].length, 240);
+  const crossing = Music.rotateNotes([note({ time: 3360, length: 480 })], 240, 3840);
+  assert.deepEqual([crossing[0].time, crossing[0].length], [3600, 480], "it carries on into the start");
+  const returned = Music.rotateNotes(crossing, -240, 3840);
+  assert.deepEqual([returned[0].time, returned[0].length], [3360, 480], "shifting back brings it back whole");
 });
 
 test("copying knob movements makes a separate copy that fits the pattern", () => {
