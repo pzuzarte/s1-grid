@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>S-1 Grid</title>
-<link rel="stylesheet" href="style.css?v=202611240021">
+<link rel="stylesheet" href="style.css?v=202611240920">
 <script>
   // Set before the page draws, so it doesn't flash the other theme.
   try { if ((localStorage.getItem("midi-grids-theme") || localStorage.getItem("s1-grid-theme")) === "light") document.documentElement.dataset.theme = "light"; } catch {}
@@ -54,7 +54,7 @@
 
 <section class="bar name-bar" aria-label="This pattern's patch file">
   <span class="group-label">Patch</span>
-  <strong id="pattern-name" class="pattern-name untitled">Untitled</strong>
+  <button id="pattern-name" class="pattern-name untitled" type="button">Untitled</button>
   <button id="pattern-save" class="primary" type="button" title="Save this pattern and sound to its patch file again (Cmd+S). The first time, it asks where.">Save</button>
   <button id="pattern-save-as" type="button" title="Save this pattern and sound as a new patch file, choosing its name and folder (Cmd+Shift+S)">Save as&hellip;</button>
   <button id="pattern-open" type="button" title="Open an S-1 patch file from anywhere on this computer into this pattern">Open&hellip;</button>
@@ -182,6 +182,7 @@
 
 <div class="workspace">
   <div class="grid-column">
+    <div class="grid-title-row"><button id="grid-title" class="grid-title" type="button" title="Click to name this pattern"></button></div>
     <div id="pager" class="pager" hidden>
       <button id="page-prev" type="button" aria-label="Previous bars">&lsaquo;</button>
       <span id="page-label" aria-live="polite"></span>
@@ -493,14 +494,14 @@
     <p id="import-error" class="status error" role="alert" hidden></p>
   </div>
 </dialog>
-<script src="music.js?v=202611240021"></script>
-<script src="named-file.js?v=202611240021"></script>
-<script src="prm.js?v=202611240021"></script>
-<script src="params.js?v=202611240021"></script>
-<script src="sync.js?v=202611240021"></script>
-<script src="backup.js?v=202611240021"></script>
-<script src="recorder.js?v=202611240021"></script>
-<script src="app.js?v=202611240021"></script>
+<script src="music.js?v=202611240920"></script>
+<script src="named-file.js?v=202611240920"></script>
+<script src="prm.js?v=202611240920"></script>
+<script src="params.js?v=202611240920"></script>
+<script src="sync.js?v=202611240920"></script>
+<script src="backup.js?v=202611240920"></script>
+<script src="recorder.js?v=202611240920"></script>
+<script src="app.js?v=202611240920"></script>
 <script>
   // The tools menu closes when you click elsewhere or press Escape.
   document.addEventListener("click", (event) => {
