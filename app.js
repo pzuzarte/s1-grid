@@ -2040,8 +2040,11 @@ function loadSlotAssets(assets) {
   closeNoteEditor({ restoreFocus: false });
   remember();
   for (const { index, data } of slots) {
-    state.slots[index] = data;
-    state.sources[index] = null;
+    // A pattern from a patch file brings the patch as its source.
+    const { source, ...pattern } = data;
+    state.slots[index] = pattern;
+    state.sources[index] = source && typeof source.name === "string" && typeof source.text === "string" && !Prm.validate(source.text).length
+      ? { name: source.name, text: source.text, fileKey: null } : null;
   }
   if (slots.some(({ index }) => index === state.queued)) state.queued = null;
   library.loaded = state.sources[state.current] ? state.sources[state.current].name : null;
@@ -2136,6 +2139,26 @@ function fetchPicked({ patterns = [], sound = null } = {}) {
   return { patterns: picked, sound: kept };
 }
 
+// Song Grid sends patch files chosen on the computer. Each is read as a pattern, with the
+// patch kept as its source, so its name shows and Save writes a patch.
+function readFilesForSong({ files = [] } = {}) {
+  const patterns = [];
+  const skipped = [];
+  for (const file of Array.isArray(files) ? files : []) {
+    const fileName = String(file?.name || "");
+    const text = Array.isArray(file?.bytes) ? new TextDecoder().decode(new Uint8Array(file.bytes)) : "";
+    if (!text || Prm.validate(text).length) {
+      skipped.push(fileName || "A file");
+      continue;
+    }
+    const name = fileName.replace(/\.prm$/i, "");
+    const notes = Prm.readNotes(text);
+    const bars = Prm.readBars(text);
+    patterns.push({ id: `file:${name}`, ref: null, label: name, length: barsText(bars), notes: notes.length, data: { bars, notes, source: { name, text } } });
+  }
+  return { patterns, skipped };
+}
+
 // What Song Grid keeps of this grid for a song: its patterns, and its sound where it has
 // one. See sync.js.
 function collectAssets() {
@@ -2171,7 +2194,7 @@ const link = Sync.connect({
   song: (part) => { pendingSong = part; },
   assets: collectAssets,
   loadAssets,
-  answers: { catalog, fetch: fetchPicked },
+  answers: { catalog, fetch: fetchPicked, readFiles: readFilesForSong },
   songMoved(data) {
     const move = song && Sync.songMove(data, song.bars);
     if (move) song.moves.push(move);
