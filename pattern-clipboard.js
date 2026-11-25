@@ -3,11 +3,12 @@
    pattern copied in one can be pasted in another. They're all served from the same site,
    so the clipboard is kept in the browser's storage, where each page can read it.
 
-   What's kept: { version, from, span, notes }, with times and lengths in ticks at 960 per
+   What's kept: { version, from, span, triplet, notes }, with times and lengths in ticks at 960 per
    quarter note. Each note is { time, length, note, velocity, probability } (note is the
    MIDI note, velocity 0 to 1), the same as the S-1, Bass Station and Protein grids' own
    notes, which may also carry their own extras (substep). TD-3 Grid turns its steps into
-   notes like these, adding accent and slide, and turns notes back into steps.
+   notes like these, adding accent and slide, and turns notes back into steps. triplet says
+   the pattern was written in triplet steps, so a grid pasting it can show triplets too.
 
    This file is the same in each grid. */
 
@@ -26,8 +27,10 @@ const PatternClipboard = (() => {
   }
 
   // Keeps a copied pattern for every grid. Returns false if the browser wouldn't store it.
-  function write(from, span, notes) {
-    const clip = { version: VERSION, from, span: Math.max(1, Math.round(span)), notes: notes.map(clean), at: Date.now() };
+  function write(from, span, notes, { triplet = false } = {}) {
+    const clip = {
+      version: VERSION, from, span: Math.max(1, Math.round(span)), triplet: Boolean(triplet), notes: notes.map(clean), at: Date.now(),
+    };
     try {
       localStorage.setItem(KEY, JSON.stringify(clip));
       return true;
@@ -41,7 +44,9 @@ const PatternClipboard = (() => {
     try {
       const clip = JSON.parse(localStorage.getItem(KEY) || "null");
       if (!clip || clip.version !== VERSION || !Array.isArray(clip.notes)) return null;
-      return { ...clip, span: Math.max(1, Math.round(Number(clip.span) || PPQ * 4)), notes: clip.notes.map(clean) };
+      return {
+        ...clip, span: Math.max(1, Math.round(Number(clip.span) || PPQ * 4)), triplet: clip.triplet === true, notes: clip.notes.map(clean),
+      };
     } catch {
       return null;
     }

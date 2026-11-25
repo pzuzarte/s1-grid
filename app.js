@@ -367,7 +367,7 @@ function copySelection() {
   const copied = notes().filter((n) => n.time >= range.start && n.time < range.end);
   state.clipboard = { span: range.end - range.start, notes: copied.map((n) => ({ ...n, time: n.time - range.start })) };
   // Kept for the other grids too, so it can be pasted into S-1, TD-3, Bass Station or Protein Grid.
-  PatternClipboard.write(GRID_ID, state.clipboard.span, state.clipboard.notes);
+  PatternClipboard.write(GRID_ID, state.clipboard.span, state.clipboard.notes, { triplet: state.triplets });
   $("paste").disabled = false;
   const count = `${copied.length} ${copied.length === 1 ? "note" : "notes"}`;
   setStatus(state.selection
@@ -384,6 +384,21 @@ function pasteClipboard() {
   closeNoteEditor({ restoreFocus: false });
   remember();
   const start = state.selection ? state.selection.start : 0;
+  // A pattern in triplet steps, like a TD-3's in triplet mode, shows in triplets here too, so
+  // its notes sit on the grid's steps, and the grid goes back to straight steps for one that isn't.
+  const steps = clip.triplet !== state.triplets ? ` The grid is now in ${clip.triplet ? "triplet" : "straight"} steps, to match.` : "";
+  if (steps) {
+    state.triplets = clip.triplet;
+    state.resolution = clip.triplet ? (state.baseResolution * 2) / 3 : state.baseResolution;
+    renderStepControls();
+  }
+  // The pattern gets more bars if what's pasted runs past its end, up to the most it can have.
+  const needed = IMPORT_BARS.find((count) => start + clip.span <= count * BAR) ?? IMPORT_BARS.at(-1);
+  const grown = needed > slot().bars ? ` The pattern is now ${needed} bars long, to fit it.` : "";
+  if (grown) {
+    slot().bars = needed;
+    renderBarsOptions();
+  }
   const length = lengthPulses();
   const end = Math.min(start + clip.span, length);
   const pasted = clip.notes
@@ -398,7 +413,7 @@ function pasteClipboard() {
   saveSoon();
   const from = clip.from && clip.from !== GRID_ID ? ` from ${PatternClipboard.sourceName(clip)}` : "";
   const cut = start + clip.span > length ? " It's longer than the pattern, so the end was left off." : "";
-  setStatus(`Pasted ${pasted.length} ${pasted.length === 1 ? "note" : "notes"}${from}. Undo takes it back.${cut}`);
+  setStatus(`Pasted ${pasted.length} ${pasted.length === 1 ? "note" : "notes"}${from}. Undo takes it back.${grown}${steps}${cut}`);
 }
 
 // Sets velocity on the chosen steps, or the whole pattern if none are chosen.
