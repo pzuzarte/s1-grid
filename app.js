@@ -1,6 +1,8 @@
 "use strict";
 
 const PPQ = Music.PPQ;
+// This grid's name on the clipboard the grids share.
+const GRID_ID = "s1";
 const BAR = PPQ * 4;
 const SLOTS = 16;
 const SCHEDULE_AHEAD_MS = 150;
@@ -360,31 +362,32 @@ function clearSelection() {
 }
 
 function copySelection() {
-  const range = state.selection;
-  if (!range) {
-    setStatus("Click or drag along the step numbers above the grid to choose steps first.", true);
-    return;
-  }
+  // With no steps chosen, the whole pattern is copied.
+  const range = state.selection || { start: 0, end: lengthPulses() };
   const copied = notes().filter((n) => n.time >= range.start && n.time < range.end);
   state.clipboard = { span: range.end - range.start, notes: copied.map((n) => ({ ...n, time: n.time - range.start })) };
+  // Kept for the other grids too, so it can be pasted into S-1, TD-3, Bass Station or Protein Grid.
+  PatternClipboard.write(GRID_ID, state.clipboard.span, state.clipboard.notes);
   $("paste").disabled = false;
-  setStatus(`Copied ${copied.length} ${copied.length === 1 ? "note" : "notes"}. Choose where it goes with the step numbers, then click Paste.`);
+  const count = `${copied.length} ${copied.length === 1 ? "note" : "notes"}`;
+  setStatus(state.selection
+    ? `Copied ${count}. Choose where it goes with the step numbers, then click Paste, here or in another grid.`
+    : `Copied pattern ${state.current + 1}, ${count}. Paste it into another pattern here or in another grid.`);
 }
 
 // Replaces what's in the steps it lands on, in this pattern or another.
+// With no step chosen, it goes at the start of the pattern. What was copied last in any of
+// the grids is pasted; a TD-3's accents and slides aren't kept, as these grids don't have them.
 function pasteClipboard() {
-  if (!state.clipboard) return;
-  if (!state.selection) {
-    setStatus("Click a step number to choose where to paste.", true);
-    return;
-  }
+  const clip = PatternClipboard.read() || state.clipboard;
+  if (!clip) return;
   closeNoteEditor({ restoreFocus: false });
   remember();
-  const { start } = state.selection;
+  const start = state.selection ? state.selection.start : 0;
   const length = lengthPulses();
-  const end = Math.min(start + state.clipboard.span, length);
-  const pasted = state.clipboard.notes
-    .map((n) => ({ ...n, time: n.time + start }))
+  const end = Math.min(start + clip.span, length);
+  const pasted = clip.notes
+    .map(({ accent, slide, ...n }) => ({ probability: 100, ...n, time: n.time + start }))
     .filter((n) => n.time < length)
     .map((n) => ({ ...n, length: Math.min(n.length, length - n.time) }));
   slot().notes = [...notes().filter((n) => n.time < start || n.time >= end), ...pasted]
@@ -393,7 +396,9 @@ function pasteClipboard() {
   renderGrid();
   renderChrome();
   saveSoon();
-  setStatus(`Pasted ${pasted.length} ${pasted.length === 1 ? "note" : "notes"}. Undo takes it back.`);
+  const from = clip.from && clip.from !== GRID_ID ? ` from ${PatternClipboard.sourceName(clip)}` : "";
+  const cut = start + clip.span > length ? " It's longer than the pattern, so the end was left off." : "";
+  setStatus(`Pasted ${pasted.length} ${pasted.length === 1 ? "note" : "notes"}${from}. Undo takes it back.${cut}`);
 }
 
 // Sets velocity on the chosen steps, or the whole pattern if none are chosen.
@@ -3855,6 +3860,9 @@ function bindControls() {
   $("scale-up").addEventListener("click", () => shiftInScale(1));
   $("copy").addEventListener("click", copySelection);
   $("paste").addEventListener("click", pasteClipboard);
+  // Paste works as soon as anything is copied in any of the grids, even in another tab.
+  $("paste").disabled = !PatternClipboard.read() && !state.clipboard;
+  PatternClipboard.onChange((clip) => { $("paste").disabled = !clip && !state.clipboard; });
   $("velocity-set").addEventListener("click", setBulkVelocity);
   setUpRecorder();
   $("chain").addEventListener("change", (event) => setChain(event.target.value));
