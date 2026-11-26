@@ -49,15 +49,19 @@
     </nav>
   </details>
   <button id="theme-toggle" class="theme-toggle" type="button" title="Switch between dark and light mode, for all the grids" aria-label="Dark or light mode">☀</button>
-  <button id="help-open" type="button" title="Help (press ?)">Help</button>
+  <button id="help-open" type="button" title="Help (press ?)" data-icon="help">Help</button>
 </header>
 
 <section class="bar name-bar" aria-label="This pattern's patch file">
   <span class="group-label">Patch</span>
   <button id="pattern-name" class="pattern-name untitled" type="button">Untitled</button>
-  <button id="pattern-save" class="primary" type="button" title="Save this pattern and sound to its patch file again (Cmd+S). The first time, it asks where.">Save</button>
-  <button id="pattern-save-as" type="button" title="Save this pattern and sound as a new patch file, choosing its name and folder (Cmd+Shift+S)">Save as&hellip;</button>
-  <button id="pattern-open" type="button" title="Open an S-1 patch file from anywhere on this computer into this pattern">Open&hellip;</button>
+  <button id="pattern-save" class="primary" type="button" title="Save this pattern and sound to its patch file again (Cmd+S). The first time, it asks where." data-icon="save">Save</button>
+  <button id="pattern-save-as" type="button" title="Save this pattern and sound as a new patch file, choosing its name and folder (Cmd+Shift+S)" data-icon="save-as">Save as&hellip;</button>
+  <button id="pattern-open" type="button" title="Open an S-1 patch file from anywhere on this computer into this pattern" data-icon="open">Open&hellip;</button>
+  <button id="load-pattern" type="button" title="Show the patches saved in the library folder" data-icon="library">Saved patterns</button>
+  <div class="spacer"></div>
+  <span id="library-where" class="pill library-where">No library folder</span>
+  <button id="library-folder" type="button" data-icon="folder">Choose library folder</button>
 </section>
 
 <section class="bar slots-bar" aria-label="Patterns">
@@ -77,16 +81,16 @@
     <button id="init-sound" type="button" title="Starting sound: sets every sound control to a starting point for this idea. Hear original brings back the sound you had.">Init</button>
   <button id="init-sine" type="button" title="Close to a sine wave: sets every sound control to get as close to a sine wave as the S-1 can, using a filtered square wave. Hear original brings back the sound you had.">Sine</button>
   </div>
-  <button id="generate" type="button" title="Replaces this pattern with a new one in the key. Undo brings the old one back.">Generate</button>
-  <button id="undo" type="button" title="Undo (Cmd+Z)" disabled>Undo</button>
-  <button id="redo" type="button" title="Redo (Cmd+Shift+Z)" disabled>Redo</button>
-  <button id="duplicate" type="button" title="Copy this pattern to the next empty slot">Duplicate</button>
-  <button id="clear" type="button">Clear</button>
+  <button id="generate" type="button" title="Replaces this pattern with a new one in the key. Undo brings the old one back." data-icon="generate">Generate</button>
+  <button id="undo" type="button" title="Undo (Cmd+Z)" disabled data-icon="undo">Undo</button>
+  <button id="redo" type="button" title="Redo (Cmd+Shift+Z)" disabled data-icon="redo">Redo</button>
+  <button id="duplicate" type="button" title="Copy this pattern to the next empty slot" data-icon="duplicate">Duplicate</button>
+  <button id="clear" type="button" data-icon="clear">Clear</button>
 </section>
 
 <section class="bar transport" aria-label="Transport and grid settings">
-  <button id="play" class="primary" type="button">Play</button>
-  <button id="stop-all" type="button" title="Stops playback and silences any stuck notes">Panic</button>
+  <button id="play" class="primary" type="button" data-icon="auto">Play</button>
+  <button id="stop-all" type="button" title="Stops playback and silences any stuck notes" data-icon="panic">Panic</button>
   <label>BPM
     <input id="bpm" type="number" min="20" max="300" step="0.1" value="120">
   </label>
@@ -97,7 +101,7 @@
   <label class="check" title="Sends MIDI clock, start and stop with playback. These also start the S-1's own sequencer.">
     <input id="clock" type="checkbox"> Send clock
   </label>
-  <button id="click" class="toggle" type="button" aria-pressed="false" title="A metronome click on each beat while the pattern plays, louder on the first beat of each bar. It plays from this computer, not the instrument.">Click</button>
+  <button id="click" class="toggle" type="button" aria-pressed="false" title="A metronome click on each beat while the pattern plays, louder on the first beat of each bar. It plays from this computer, not the instrument." data-icon="click">Click</button>
   <span class="divider" aria-hidden="true"></span>
   <label>Bars
     <select id="bars">
@@ -146,27 +150,27 @@
   </label>
   <span class="divider" aria-hidden="true"></span>
   <div class="button-pair">
-    <button id="shift-left" type="button" title="Move the whole pattern one step earlier, wrapping around" aria-label="Move earlier">Shift &lt;</button>
-    <button id="shift-right" type="button" title="Move the whole pattern one step later, wrapping around" aria-label="Move later">Shift &gt;</button>
+    <button id="shift-left" type="button" title="Move the whole pattern one step earlier, wrapping around" aria-label="Move earlier" data-icon="shift-left">Shift &lt;</button>
+    <button id="shift-right" type="button" title="Move the whole pattern one step later, wrapping around" aria-label="Move later" data-icon="shift-right">Shift &gt;</button>
   </div>
   <div class="button-pair">
     <button id="scale-down" type="button" title="Move every note down one step in the scale" aria-label="Scale step down">Scale -</button>
     <button id="scale-up" type="button" title="Move every note up one step in the scale" aria-label="Scale step up">Scale +</button>
   </div>
   <div class="button-pair">
-    <button id="octave-down" type="button" title="Move every note in this pattern down an octave" aria-label="Octave down">Oct -</button>
-    <button id="octave-up" type="button" title="Move every note in this pattern up an octave" aria-label="Octave up">Oct +</button>
+    <button id="octave-down" type="button" title="Move every note in this pattern down an octave" aria-label="Octave down" data-icon="down">Oct -</button>
+    <button id="octave-up" type="button" title="Move every note in this pattern up an octave" aria-label="Octave up" data-icon="up">Oct +</button>
   </div>
   <div class="button-pair">
-    <button id="copy" type="button" title="Copy the chosen steps, or the whole pattern if none are chosen. Choose steps by clicking or dragging along the step numbers. It can be pasted here or in S-1, TD-3, Bass Station or Protein Grid.">Copy</button>
-    <button id="paste" type="button" title="Paste what was copied last in any of the grids at the chosen step, or at the start, replacing what's there" disabled>Paste</button>
+    <button id="copy" type="button" title="Copy the chosen steps, or the whole pattern if none are chosen. Choose steps by clicking or dragging along the step numbers. It can be pasted here or in S-1, TD-3, Bass Station or Protein Grid." data-icon="copy">Copy</button>
+    <button id="paste" type="button" title="Paste what was copied last in any of the grids at the chosen step, or at the start, replacing what's there" disabled data-icon="paste">Paste</button>
   </div>
   <label title="Sets velocity on the chosen steps, or the whole pattern if none are chosen">Velocity
     <input id="bulk-velocity" type="number" min="1" max="127" step="1" value="100">
   </label>
   <button id="velocity-set" type="button">Set</button>
   <div class="field" role="group" aria-label="Recording">
-    <button id="record" class="toggle" type="button" aria-pressed="false" title="Record notes from the chosen input. Press Play to record in time as the pattern loops, or just press keys to add them step by step.">Rec</button>
+    <button id="record" class="toggle" type="button" aria-pressed="false" title="Record notes from the chosen input. Press Play to record in time as the pattern loops, or just press keys to add them step by step." data-icon="auto">Rec</button>
     <select id="record-input" aria-label="Record from" title="The keyboard or instrument to record from"></select>
     <select id="record-channel" aria-label="Record channel" title="The MIDI channel to record, or any"></select>
     <select id="record-snap" aria-label="Where recorded notes land" title="Exact keeps each recorded note where you played it. Snap to steps moves it to the nearest step. Either way, it ends where you let go."></select>
@@ -212,7 +216,6 @@
     <nav id="tabs" class="tabs" aria-label="Sound sections"></nav>
     <div id="library" class="library" hidden>
       <div class="library-actions">
-        <button id="library-folder" type="button">Choose library folder</button>
         <button id="library-from-s1" class="primary" type="button" title="Choose which patterns on the S-1 to copy into the library">Import from S-1</button>
         <button id="library-import" type="button" title="Copy every pattern from an S-1 BACKUP folder into the library">Import backup</button>
       </div>
@@ -375,6 +378,7 @@
 
     <h3>Patch library</h3>
     <ul>
+      <li><b>Choose library folder</b>, at the end of the row with Save, picks where your library is kept: any folder on this computer, or one in Google Drive or the like to reach it from other computers too. The page remembers it and saves there from then on. After Chrome restarts it may ask again: click <b>Allow library folder</b>. <b>Change library folder</b> moves to another one, and the label beside it shows which folder is in use. <b>Saved patterns</b> shows what's saved there.</li>
       <li>The <b>LIBRARY</b> tab keeps patches as files in a folder you choose on this computer. Each holds a full S-1 pattern: notes, motions, and every sound setting.</li>
       <li><b>Hear</b> plays a patch at its own tempo with its own sound, without changing the grid. Your sound comes back when it stops, apart from any controls showing <b>?</b>, as the page doesn't know what they were.</li>
       <li><b>☆</b> marks a favourite, and <b>Favourites only</b> shows just those. <b>Tags</b> adds words that the search also finds. Both are saved in a <b>library-info.json</b> file in your library folder.</li>
@@ -502,7 +506,9 @@
 <script src="backup.js?v=202611251300"></script>
 <script src="recorder.js?v=202611251300"></script>
 <script src="pattern-clipboard.js?v=202611251530"></script>
-<script src="app.js?v=202611251530"></script>
+<script src="library-button.js?v=202611261000"></script>
+<script src="grid-icons.js?v=202611261000"></script>
+<script src="app.js?v=202611261000"></script>
 <script>
   // The tools menu closes when you click elsewhere or press Escape.
   document.addEventListener("click", (event) => {

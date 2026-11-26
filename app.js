@@ -2953,8 +2953,8 @@ function renderLibrary() {
     missing: ["Choose library folder", `Couldn't read "${library.folder && library.folder.name}". Choose it again.`],
     ready: ["Change folder", ""],
   };
-  const [label, message] = views[library.status];
-  button.textContent = label;
+  const [, message] = views[library.status];
+  LibraryButton.render(button, $("library-where"), library.status, library.folder?.name);
   const ready = library.status === "ready";
   $("library-import").disabled = !ready;
   $("library-from-s1").disabled = !ready;
@@ -3821,6 +3821,16 @@ function bindControls() {
   });
   $("follow-s1").addEventListener("click", toggleFollow);
   $("follow-backup").addEventListener("click", chooseFollowBackup);
+  // Saved patterns, beside Save, shows the library.
+  $("load-pattern").addEventListener("click", () => {
+    state.tab = "library";
+    renderTabs();
+    renderParams();
+    $("library").scrollIntoView({ block: "start" });
+    setStatus(library.status === "ready"
+      ? "Click a patch to load it into this pattern."
+      : "Choose a library folder, beside Save, to keep patches in.");
+  });
   $("library-folder").addEventListener("click", () => {
     if (library.status === "ready") library.status = "none";
     chooseLibraryFolder().finally(renderLibrary);
