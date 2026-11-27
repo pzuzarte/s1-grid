@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>S-1 Grid</title>
-<link rel="stylesheet" href="style.css?v=202611251300">
+<link rel="stylesheet" href="style.css?v=202611261900">
 <script>
   // Set before the page draws, so it doesn't flash the other theme.
   try { if ((localStorage.getItem("midi-grids-theme") || localStorage.getItem("s1-grid-theme")) === "light") document.documentElement.dataset.theme = "light"; } catch {}
@@ -221,7 +221,7 @@
       </div>
       <p id="library-state" class="library-state"></p>
       <input id="library-search" type="search" placeholder="Search names and tags" aria-label="Search patches" spellcheck="false">
-      <label class="check library-favourites"><input id="library-favourites" type="checkbox"> Favourites only</label>
+      <div id="library-tags" class="tag-bar library-tags" role="group" aria-label="Show only favourites, or patches with a tag"></div>
       <div class="library-batch">
         <button id="library-select-all" type="button">Select all</button>
         <button id="library-select-none" type="button">Clear</button>
@@ -381,7 +381,7 @@
       <li><b>Choose library folder</b>, at the end of the row with Save, picks where your library is kept: any folder on this computer, or one in Google Drive or the like to reach it from other computers too. The page remembers it and saves there from then on. After Chrome restarts it may ask again: click <b>Allow library folder</b>. <b>Change library folder</b> moves to another one, and the label beside it shows which folder is in use. <b>Saved patterns</b> shows what's saved there.</li>
       <li>The <b>LIBRARY</b> tab keeps patches as files in a folder you choose on this computer. Each holds a full S-1 pattern: notes, motions, and every sound setting.</li>
       <li><b>Hear</b> plays a patch at its own tempo with its own sound, without changing the grid. Your sound comes back when it stops, apart from any controls showing <b>?</b>, as the page doesn't know what they were.</li>
-      <li><b>☆</b> marks a favourite, and <b>Favourites only</b> shows just those. <b>Tags</b> adds words that the search also finds. Both are saved in a <b>library-info.json</b> file in your library folder.</li>
+      <li><b>☆</b> marks a favourite. <b>Tags</b> adds words or short phrases, separated by commas, such as "acid, dark". Under the search, <b>&#9733; Favourites</b> and a button for each tag you use show only those patches, and you can pick several tags to narrow it further. The search finds tags too. Favourites and tags are saved in a <b>library-info.json</b> file in your library folder, so they go wherever the folder goes, and Song Grid's Add list shows and filters them the same way.</li>
       <li><b>Import from S-1</b> lets you pick which of the S-1's 64 patterns to copy into the library, and name each one. It reads the S-1's USB drive, or a <b>BACKUP</b> folder you saved, and doesn't change anything on the S-1.</li>
       <li><b>Import backup</b> fills it from an S-1 <b>BACKUP</b> folder, with its patterns that have notes and one blank patch. These are whatever is saved on your S-1, which may include your own edits.</li>
       <li>Click a patch to load it: the grid fills with its notes, its sound controls update, and its sound is sent to the S-1. The play button also starts playback. A patch's key is estimated from its notes.</li>
@@ -506,9 +506,10 @@
 <script src="backup.js?v=202611251300"></script>
 <script src="recorder.js?v=202611251300"></script>
 <script src="pattern-clipboard.js?v=202611251530"></script>
+<script src="library-tags.js?v=202611261900"></script>
 <script src="library-button.js?v=202611261400"></script>
 <script src="grid-icons.js?v=202611261000"></script>
-<script src="app.js?v=202611261400"></script>
+<script src="app.js?v=202611261900"></script>
 <script>
   // The tools menu closes when you click elsewhere or press Escape.
   document.addEventListener("click", (event) => {

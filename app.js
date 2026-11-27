@@ -2126,17 +2126,18 @@ function pickedSlots(ids) {
 
 const patchById = (id) => (library.status === "ready" ? library.items.find((item) => `patch:${item.name}` === id) : null);
 const isFavouritePatch = (item) => Boolean(library.info[item.name]?.favourite);
+const patchTags = (item) => LibraryTags.format(LibraryTags.of(library.info[item.name]));
 
 function catalog() {
   const ready = library.status === "ready";
   return {
     grid: slotChoices(),
     patterns: ready ? library.items.filter((item) => item.info.notes).map((item) => ({
-      id: `patch:${item.name}`, label: item.name, meta: `${item.info.notes} steps with notes`, favourite: isFavouritePatch(item),
+      id: `patch:${item.name}`, label: item.name, meta: `${item.info.notes} steps with notes`, favourite: isFavouritePatch(item), tags: patchTags(item),
     })) : [],
     sounds: [
       ...(Object.keys(state.values).length ? [{ id: "current", label: "The sound in the controls", meta: "As it is now" }] : []),
-      ...(ready ? library.items.map((item) => ({ id: `patch:${item.name}`, label: item.name, meta: "Patch", favourite: isFavouritePatch(item) })) : []),
+      ...(ready ? library.items.map((item) => ({ id: `patch:${item.name}`, label: item.name, meta: "Patch", favourite: isFavouritePatch(item), tags: patchTags(item) })) : []),
     ],
     note: LibraryButton.songNote(library.status, "S-1 Grid", "patches"),
   };
@@ -2823,7 +2824,7 @@ const LIBRARY_INFO = "library-info.json";
 
 const library = {
   info: {},
-  favouritesOnly: false,
+  filter: LibraryTags.filter(), // Favourites and tags shown, and the search.
   folder: null, status: "none", items: [], search: "", loaded: null, selected: new Set(),
 };
 
@@ -2916,7 +2917,8 @@ async function readLibraryInfo() {
 async function changeLibraryInfo(name, change) {
   const entry = { favourite: false, tags: "", ...library.info[name] };
   change(entry);
-  if (entry.favourite || entry.tags) library.info[name] = entry;
+  const kept = LibraryTags.tidy(entry);
+  if (kept) library.info[name] = kept;
   else delete library.info[name];
   try {
     await writeBytes(library.folder, LIBRARY_INFO, new TextEncoder().encode(JSON.stringify(library.info, null, 2)));
@@ -2927,8 +2929,9 @@ async function changeLibraryInfo(name, change) {
 }
 
 function editTags(item) {
-  const answer = window.prompt("Tags for this patch, separated by commas:", library.info[item.name]?.tags || "");
-  if (answer !== null) changeLibraryInfo(item.name, (entry) => { entry.tags = answer.trim().slice(0, 200); });
+  const known = LibraryTags.counts(Object.values(library.info)).map((entry) => entry.tag);
+  const answer = LibraryTags.ask(item.name, library.info[item.name], known);
+  if (answer !== null) changeLibraryInfo(item.name, (entry) => { entry.tags = answer; });
 }
 
 async function readLibrary() {
@@ -2966,6 +2969,7 @@ function renderLibrary() {
   } else {
     setLibraryState(message);
   }
+  LibraryTags.bar($("library-tags"), library.filter, library.items.map((item) => library.info[item.name]), renderLibrary, { disabled: !ready });
   $("library-list").replaceChildren(...visiblePatches().map(libraryRow));
   renderLibraryBatch();
 }
@@ -2985,12 +2989,8 @@ function renderLibraryBatch() {
 
 // Select all follows the search, so a filtered list can be sent together.
 function visiblePatches() {
-  const term = library.search.trim().toLowerCase();
-  return library.items.filter((item) => {
-    const info = library.info[item.name];
-    if (library.favouritesOnly && !info?.favourite) return false;
-    return item.name.toLowerCase().includes(term) || (info?.tags || "").toLowerCase().includes(term);
-  });
+  library.filter.words = library.search;
+  return library.items.filter((item) => LibraryTags.matches(library.filter, item.name, library.info[item.name]));
 }
 
 function libraryRow(item) {
@@ -3016,8 +3016,9 @@ function libraryRow(item) {
   const detail = document.createElement("small");
   const motions = item.info.motions ? ", motions" : "";
   const info = library.info[item.name];
-  const tags = info?.tags ? `. ${info.tags}` : "";
-  detail.textContent = `${item.info.notes} steps with notes, ${item.bpm} BPM${motions}${tags}`;
+  detail.textContent = `${item.info.notes} steps with notes, ${item.bpm} BPM${motions}`;
+  const pills = LibraryTags.pills(info);
+  if (pills) name.append(pills);
   load.append(name, detail);
   load.addEventListener("click", () => loadPatch(item));
   const action = (text, title, handler) => {
@@ -3030,10 +3031,9 @@ function libraryRow(item) {
     return button;
   };
   const hearing = state.preview?.name === item.name;
-  const star = action(info?.favourite ? "★" : "☆", "Favourite", () => {
+  const star = LibraryTags.star(Boolean(info?.favourite), item.name, () => {
     changeLibraryInfo(item.name, (entry) => { entry.favourite = !entry.favourite; });
   });
-  star.setAttribute("aria-pressed", String(Boolean(info?.favourite)));
   row.append(
     check,
     load,
@@ -3908,10 +3908,6 @@ function bindControls() {
   $("theme-toggle").textContent = document.documentElement.dataset.theme === "light" ? "☾" : "☀";
   $("vary-big").addEventListener("click", () => varySound(0.25));
   $("vary-compare").addEventListener("click", compareVary);
-  $("library-favourites").addEventListener("change", (event) => {
-    library.favouritesOnly = event.target.checked;
-    renderLibrary();
-  });
   $("octave-down").addEventListener("click", () => shiftOctave(-1));
   $("octave-up").addEventListener("click", () => shiftOctave(1));
   $("generate").addEventListener("click", generatePattern);

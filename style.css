@@ -90,7 +90,7 @@ h1 { margin: 0 6px 0 0; font-size: 16px; font-weight: 700; letter-spacing: 0.02e
 .lane-canvas { display: block; height: 70px; border-radius: 3px; cursor: crosshair; touch-action: none; }
 .vary-bar { display: flex; align-items: center; gap: 4px; }
 .vary-bar button { flex: 1; height: 26px; padding: 0 4px; font-size: 11px; }
-.library-favourites { font-size: 12px; }
+.library-tags { margin: 6px 0; }
 .step-number { cursor: pointer; }
 .step-number.selected { background: var(--accent); color: var(--accent-text); }
 .cell.selected { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.28); }
