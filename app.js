@@ -2138,7 +2138,7 @@ function catalog() {
       ...(Object.keys(state.values).length ? [{ id: "current", label: "The sound in the controls", meta: "As it is now" }] : []),
       ...(ready ? library.items.map((item) => ({ id: `patch:${item.name}`, label: item.name, meta: "Patch", favourite: isFavouritePatch(item) })) : []),
     ],
-    note: ready ? "" : "Choose the library folder in S-1 Grid to pick from its patches too.",
+    note: LibraryButton.songNote(library.status, "S-1 Grid", "patches"),
   };
 }
 
